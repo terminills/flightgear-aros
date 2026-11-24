@@ -1,0 +1,86 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Mon, 23 Nov 2026 21:45:03 -0600
+Subject: [PATCH 7/8] DNS client: no query on a context that is not open
+
+With no network stack running dns_open() fails; the client logged that
+and went on. udns allocates its packet buffer in dns_open() and only
+asserts that a context is open, so the first query wrote through a null
+pointer (dns_ptodn(), from TerraSync's thread, a few seconds after the
+start of fgfs).
+
+A request made while there is no socket is not submitted and reads as
+timed out. Each new request tries to open the context again, with the
+name servers of that moment.
+---
+ simgear/io/DNSClient.cxx | 31 +++++++++++++++++++++++++------
+ 1 file changed, 25 insertions(+), 6 deletions(-)
+
+diff --git a/simgear/io/DNSClient.cxx b/simgear/io/DNSClient.cxx
+index 9062eac..173be97 100644
+--- a/simgear/io/DNSClient.cxx
++++ b/simgear/io/DNSClient.cxx
+@@ -37,7 +37,7 @@ namespace DNS {
+ 
+ class Client::ClientPrivate {
+ public:
+-    ClientPrivate(const std::string& nameserver)
++    ClientPrivate(const std::string& nameserver) : _nameserver(nameserver)
+     {
+         if( instanceCounter++ == 0 )
+           if (dns_init(NULL, 0) < 0)
+@@ -45,16 +45,27 @@ public:
+ 
+         ctx = dns_new(NULL);
+ 
+-        if (dns_init(ctx, 0) < 0)
++        if( !open() )
++            SG_LOG(SG_IO, SG_ALERT, "Can't open udns context" );
++    }
++
++    // false when there is no socket (no network running): udns takes no query then
++    bool open()
++    {
++        if (dns_sock(ctx) >= 0)
++            return true;
++
++        if (dns_init(ctx, 0) < 0) {
+             SG_LOG(SG_IO, SG_ALERT, "Can't create udns context" );
++            return false;
++        }
+ 
+-        if (!nameserver.empty()) {
++        if (!_nameserver.empty()) {
+             dns_add_serv(ctx, nullptr);
+-            dns_add_serv(ctx, nameserver.c_str());
++            dns_add_serv(ctx, _nameserver.c_str());
+         }
+ 
+-        if( dns_open(ctx) < 0 )
+-            SG_LOG(SG_IO, SG_ALERT, "Can't open udns context" );
++        return dns_open(ctx) >= 0;
+     }
+ 
+     ~ClientPrivate() {
+@@ -65,6 +76,7 @@ public:
+     }
+ 
+     struct dns_ctx * ctx;
++    std::string _nameserver;
+     static size_t instanceCounter;
+ 
+     using RequestVec = std::vector<Request_ptr>;
+@@ -268,6 +280,13 @@ Client::~Client()
+ 
+ void Client::makeRequest(const Request_ptr& r)
+ {
++    // a context that is not open has no packet buffer, and udns only asserts that it is open;
++    // the request is left as it is and reads as timed out
++    if (!d->open()) {
++        SG_LOG(SG_IO, SG_WARN, "No dns request for " << r->getDn() << ": no network");
++        return;
++    }
++
+     d->_activeRequests.push_back(r);
+     r->submit(this);
+ }

@@ -1,0 +1,4 @@
+Failat 2147483647
+Echo "pair c" >DEBUG:
+FGTEST:tests/twice c lib zstd.library
+FGTEST:tests/twice after-c

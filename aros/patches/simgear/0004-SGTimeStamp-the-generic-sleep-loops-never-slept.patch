@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Sun, 22 Nov 2026 19:29:04 -0600
+Subject: [PATCH 4/8] SGTimeStamp: the generic sleep loops never slept
+
+In the branch for systems without POSIX timers (and not Windows or
+macOS) the loops around usleep() had their condition the wrong way
+round: sleepFor() returned at once and sleepUntil() went straight to
+its busy loop for the whole interval.
+
+On AROS (one CPU) the main loop's 50 ms sleep per frame during the
+navigation cache rebuild did nothing, the splash screen was drawn
+without a pause and the rebuild thread got a few per cent of the CPU:
+apt.dat 225 s instead of 12 s, the rebuild not finished after 29
+minutes instead of 460 s in all.
+---
+ simgear/timing/timestamp.cxx | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/simgear/timing/timestamp.cxx b/simgear/timing/timestamp.cxx
+index fcb5683..ba72f1a 100644
+--- a/simgear/timing/timestamp.cxx
++++ b/simgear/timing/timestamp.cxx
+@@ -225,7 +225,7 @@ bool SGTimeStamp::sleepUntil(const SGTimeStamp& abstime)
+         return true;
+ 
+     SGTimeStamp abstimeForSleep = abstime - SGTimeStamp::fromSecMSec(0, 2);
+-    for (;abstimeForSleep < currentTime;) {
++    for (;currentTime < abstimeForSleep;) {
+         SGTimeStamp timeDiff = abstimeForSleep - currentTime;
+         if (timeDiff < SGTimeStamp::fromSecUSec(0, 1))
+             break;
+@@ -305,7 +305,7 @@ bool SGTimeStamp::sleepFor(const SGTimeStamp& reltime)
+ 
+     SGTimeStamp currentTime;
+     currentTime.stamp();
+-    for (;abstime < currentTime;) {
++    for (;currentTime < abstime;) {
+         SGTimeStamp timeDiff = abstime - currentTime;
+         if (timeDiff < SGTimeStamp::fromSecUSec(0, 1))
+             break;

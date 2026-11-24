@@ -1,0 +1,201 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Sun, 22 Nov 2026 17:53:02 -0600
+Subject: [PATCH 1/8] AROS: build SimGear against AROS's C library and
+ bsdsocket.library
+
+- strutils: AROS has the POSIX strerror_r(), also with _GNU_SOURCE (g++
+  always defines it).
+- serial: CRTSCTS is not defined on AROS.
+- nasal unix.fork(): AROS has no fork(); the call raises a Nasal
+  runtime error.
+- ShivaVG: an AROS platform branch (GL/gl.h, GL/gla.h, extension lookup
+  through glAGetProcAddress()).
+- raw_socket, udns: a socket is not a C library file descriptor on AROS,
+  so close() and fcntl() are replaced by fgaros_closesocket() and
+  fgaros_socket_nonblocking() of the port's support library
+  (libfgaros.a, which also provides the POSIX socket calls as functions,
+  select() over WaitSelect(), mmap() for reading and timegm()).
+- expat: arc4random_buf() as the entropy source.
+
+Compiles and links as static libraries with the pc-x86_64 cross
+toolchain (GCC 15.2.0). Not run on AROS yet.
+---
+ 3rdparty/expat/expat_config_cmake.in      |  2 +-
+ 3rdparty/udns/udns_resolver.c             | 13 ++++++++++++-
+ simgear/canvas/ShivaVG/src/shConfig.h     |  5 +++++
+ simgear/canvas/ShivaVG/src/shDefs.h       |  3 +++
+ simgear/canvas/ShivaVG/src/shExtensions.c |  2 ++
+ simgear/io/raw_socket.cxx                 |  5 +++++
+ simgear/misc/strutils.cxx                 |  6 +++---
+ simgear/nasal/unixlib.c                   |  5 +++++
+ simgear/serial/serial.cxx                 |  2 +-
+ 9 files changed, 37 insertions(+), 6 deletions(-)
+
+diff --git a/3rdparty/expat/expat_config_cmake.in b/3rdparty/expat/expat_config_cmake.in
+index 035edc9..a5bf37d 100644
+--- a/3rdparty/expat/expat_config_cmake.in
++++ b/3rdparty/expat/expat_config_cmake.in
+@@ -10,7 +10,7 @@
+ #cmakedefine XML_DEV_URANDOM
+ 
+ // we can assume > 10.7 macOS so always set this
+-#ifdef __APPLE__
++#if defined(__APPLE__) || defined(__AROS__)
+     #define HAVE_ARC4RANDOM_BUF
+ #endif
+ 
+diff --git a/3rdparty/udns/udns_resolver.c b/3rdparty/udns/udns_resolver.c
+index 9f8b750..7fd0c1e 100644
+--- a/3rdparty/udns/udns_resolver.c
++++ b/3rdparty/udns/udns_resolver.c
+@@ -44,7 +44,12 @@
+ # ifdef HAVE_TIMES
+ #  include <sys/times.h>
+ # endif
+-# define closesocket(sock) close(sock)
++# ifdef __AROS__
++/* a socket is not a C library file descriptor here */
++#  define closesocket(sock) fgaros_closesocket(sock)
++# else
++#  define closesocket(sock) close(sock)
++# endif
+ #endif	/* !WINDOWS */
+ 
+ #include <stdlib.h>
+@@ -559,6 +564,12 @@ int dns_open(struct dns_ctx *ctx) {
+       return -1;
+     }
+   }
++#elif defined(__AROS__)
++  if (fgaros_socket_nonblocking(sock, 1) < 0) {
++    closesocket(sock);
++    ctx->dnsc_qstatus = DNS_E_TEMPFAIL;
++    return -1;
++  }
+ #else	/* !WINDOWS */
+   if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFL) | O_NONBLOCK) < 0 ||
+       fcntl(sock, F_SETFD, FD_CLOEXEC) < 0) {
+diff --git a/simgear/canvas/ShivaVG/src/shConfig.h b/simgear/canvas/ShivaVG/src/shConfig.h
+index 77be46a..0eec849 100644
+--- a/simgear/canvas/ShivaVG/src/shConfig.h
++++ b/simgear/canvas/ShivaVG/src/shConfig.h
+@@ -36,6 +36,11 @@
+     // FreeBSD
+     #define VG_API_OPENBSD
+ 
++#elif defined(__AROS__)
++
++    // AROS
++    #define VG_API_AROS
++
+ #else
+ 
+     // Unsupported system
+diff --git a/simgear/canvas/ShivaVG/src/shDefs.h b/simgear/canvas/ShivaVG/src/shDefs.h
+index f4355b1..fe2e421 100644
+--- a/simgear/canvas/ShivaVG/src/shDefs.h
++++ b/simgear/canvas/ShivaVG/src/shDefs.h
+@@ -168,6 +168,9 @@ SHfloat getMaxFloat();
+     #include <OpenGL/gl.h>
+ #elif defined(VG_API_WINDOWS)
+     #include <GL/gl.h>
++#elif defined(VG_API_AROS)
++    #include <GL/gl.h>
++    #include <GL/gla.h>
+ #else
+     #define GL_GLEXT_LEGACY /* don't include glext.h */
+     #include <GL/gl.h>
+diff --git a/simgear/canvas/ShivaVG/src/shExtensions.c b/simgear/canvas/ShivaVG/src/shExtensions.c
+index 8e87fa4..ddaf183 100644
+--- a/simgear/canvas/ShivaVG/src/shExtensions.c
++++ b/simgear/canvas/ShivaVG/src/shExtensions.c
+@@ -74,6 +74,8 @@ PFVOID shGetProcAddress(const char *name)
+   #elif defined(__APPLE__)
+   /* TODO: Mac OS glGetProcAddress implementation */
+   return (PFVOID)NULL;
++  #elif defined(__AROS__)
++  return (PFVOID)glAGetProcAddress((const GLubyte *)name);
+   #else
+   return (PFVOID)glXGetProcAddress((const unsigned char *)name);
+   #endif
+diff --git a/simgear/io/raw_socket.cxx b/simgear/io/raw_socket.cxx
+index 9b9c20a..7111ea6 100644
+--- a/simgear/io/raw_socket.cxx
++++ b/simgear/io/raw_socket.cxx
+@@ -479,6 +479,9 @@ void Socket::setBlocking ( bool blocking )
+ #if defined(WINSOCK)
+     u_long nblocking = blocking? 0: 1;
+   ::ioctlsocket(handle, FIONBIO, &nblocking);
++#elif defined(__AROS__)
++  // a socket is not a C library file descriptor here: fcntl() does not know it
++  ::fgaros_socket_nonblocking(handle, blocking ? 0 : 1);
+ #else
+ 
+   int delay_flag = ::fcntl (handle, F_GETFL, 0);
+@@ -642,6 +645,8 @@ void Socket::close (void)
+   {
+ #if defined(WINSOCK)
+     ::closesocket( handle );
++#elif defined(__AROS__)
++    ::fgaros_closesocket( handle );
+ #else
+     ::close( handle );
+ #endif
+diff --git a/simgear/misc/strutils.cxx b/simgear/misc/strutils.cxx
+index 1d3c4ae..763c3fc 100644
+--- a/simgear/misc/strutils.cxx
++++ b/simgear/misc/strutils.cxx
+@@ -1167,9 +1167,9 @@ std::string error_string(int errnum)
+   errno_t retcode;
+   // Always makes the string in 'buf' null-terminated
+   retcode = strerror_s(buf, sizeof(buf), errnum);
+-#elif defined(_GNU_SOURCE)
++#elif defined(_GNU_SOURCE) && !defined(__AROS__)
+   return std::string(strerror_r(errnum, buf, sizeof(buf)));
+-#elif (_POSIX_C_SOURCE >= 200112L) || defined(SG_MAC) || defined(__FreeBSD__) || defined(__OpenBSD__)
++#elif (_POSIX_C_SOURCE >= 200112L) || defined(SG_MAC) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__AROS__)
+   int retcode;
+   // POSIX.1-2001 and POSIX.1-2008
+   retcode = strerror_r(errnum, buf, sizeof(buf));
+@@ -1177,7 +1177,7 @@ std::string error_string(int errnum)
+ #error "Could not find a thread-safe alternative to strerror()."
+ #endif
+ 
+-#if !defined(_GNU_SOURCE)
++#if !defined(_GNU_SOURCE) || defined(__AROS__)
+   if (retcode) {
+     std::string msg = "unable to get error message for a given error number";
+     // C++11 would make this shorter with std::to_string()
+diff --git a/simgear/nasal/unixlib.c b/simgear/nasal/unixlib.c
+index 57b5030..26aca2c 100644
+--- a/simgear/nasal/unixlib.c
++++ b/simgear/nasal/unixlib.c
+@@ -27,9 +27,14 @@ static naRef f_pipe(naContext ctx, naRef me, int argc, naRef* args)
+ 
+ static naRef f_fork(naContext ctx, naRef me, int argc, naRef* args)
+ {
++#ifdef __AROS__
++    naRuntimeError(ctx, "fork() is not available on AROS");
++    return naNil();
++#else
+     double pid = fork();
+     if(pid < 0) naRuntimeError(ctx, strerror(errno));
+     return naNum(pid);
++#endif
+ }
+ 
+ static naRef f_dup2(naContext ctx, naRef me, int argc, naRef* args)
+diff --git a/simgear/serial/serial.cxx b/simgear/serial/serial.cxx
+index 63a04d8..c418b9c 100644
+--- a/simgear/serial/serial.cxx
++++ b/simgear/serial/serial.cxx
+@@ -127,7 +127,7 @@ bool SGSerialPort::open_port(const string& device) {
+     // enable the receiver and set local mode
+     config.c_cflag |= (CLOCAL | CREAD);
+ 
+-#if !defined( sgi ) && !defined(_AIX)
++#if !defined( sgi ) && !defined(_AIX) && defined(CRTSCTS)
+     // disable hardware flow control
+     config.c_cflag &= ~(CRTSCTS);
+ #endif

@@ -1,0 +1,7 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+FGTEST:tests/tlsdtor >DEBUG:
+Echo "tlsdtor rc $RC" >DEBUG:
+FGTEST:tests/tlsdtor >DEBUG:
+Echo "tlsdtor rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

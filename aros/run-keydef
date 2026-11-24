@@ -1,0 +1,9 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+Avail >DEBUG:
+Execute FGTEST:keydef xyz
+Echo "keydef: with the argument given, rc $RC" >DEBUG:
+Execute FGTEST:keydef
+Echo "keydef: without, rc $RC" >DEBUG:
+Avail >DEBUG:
+Echo "cp done" >DEBUG:

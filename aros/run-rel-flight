@@ -1,0 +1,10 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+; the release drawer's fgfs on the drawer's llvmpipe.hidd with the take-off of aros/flight.xml; no network
+CD FG:FlightGear
+Execute UseLLVMpipe
+Echo "UseLLVMpipe rc $RC" >DEBUG:
+Echo "starting fgfs" >DEBUG:
+fgfs --start-date-lat=2026:06:21:12:00:00 --log-level=info --config=/FGTEST/flight.xml >DEBUG: *<>
+Echo "fgfs rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

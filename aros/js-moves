@@ -1,0 +1,12 @@
+; Run by aros/run-fgfs-js in a Shell of its own: a simulated Logitech Extreme 3D that moves by itself for 384 s,
+; is taken away for 12 s and comes back as a new controller that moves for another 288 s.
+FGTEST:controller/ControllerSim PROFILE=l3dpro SERIAL >NIL:
+FGTEST:controller/ControllerInfo SERIAL >NIL:
+FGTEST:controller/ControllerSim ID=1 SCRIPT=FGTEST:js-a.sim SERIAL >NIL:
+Echo "js-moves: taking the stick away" >DEBUG:
+FGTEST:controller/ControllerSim REMOVE ID=1 SERIAL >NIL:
+Wait 12
+FGTEST:controller/ControllerSim PROFILE=l3dpro SERIAL >NIL:
+Echo "js-moves: the stick is back" >DEBUG:
+FGTEST:controller/ControllerSim ID=2 SCRIPT=FGTEST:js-b.sim SERIAL >NIL:
+Echo "js-moves: done" >DEBUG:

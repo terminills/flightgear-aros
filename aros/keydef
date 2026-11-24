@@ -1,0 +1,5 @@
+.key DEV
+.bra {
+.ket }
+; keydef: a script argument with a default value, not given
+Echo "keydef: value {DEV$abc}" >DEBUG:

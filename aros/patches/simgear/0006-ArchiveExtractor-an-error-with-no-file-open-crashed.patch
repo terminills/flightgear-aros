@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Mon, 23 Nov 2026 20:52:32 -0600
+Subject: [PATCH 6/8] ArchiveExtractor: an error with no file open crashed
+
+setState() closed the current file for every error state. When the
+error comes before the first file of the archive, or between two files
+(a damaged stream, a decoder that refuses the data), there is no current
+file and the program read through a null pointer instead of reporting
+the bad archive.
+---
+ simgear/io/untar.cxx | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/simgear/io/untar.cxx b/simgear/io/untar.cxx
+index 2d3112c..e229acc 100644
+--- a/simgear/io/untar.cxx
++++ b/simgear/io/untar.cxx
+@@ -164,8 +164,11 @@ typedef struct
+ 
+             if (newState >= ERROR_STATE) {
+                 SG_LOG(SG_IO, SG_WARN, "ArchiveExtract entered error state:" << static_cast<int>(newState));
+-                currentFile->close();
+-                currentFile.reset();
++                // an error before the first file, or between two files: there is none open
++                if (currentFile) {
++                    currentFile->close();
++                    currentFile.reset();
++                }
+             }
+ 
+             state = newState;

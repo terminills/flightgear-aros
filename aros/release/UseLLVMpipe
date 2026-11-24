@@ -1,0 +1,9 @@
+; UseLLVMpipe - AROS's software GL through the llvmpipe driver in this drawer's Drivers instead of softpipe,
+; until the system is started again. Execute it in the FlightGear drawer before fgfs:
+;   CD <the FlightGear drawer>
+;   Execute UseLLVMpipe
+;   fgfs
+; A display with a GL driver of its own (NVidia, AMD) is not affected.
+Assign LIBS: Drivers ADD
+SetEnv SYS/Gallium.default llvmpipe
+Avail FLUSH >NIL:

@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<!-- fgfs -\-config=/FGTEST/fpslog.xml: the frame rate into the log every five seconds (the test VM's serial line) -->
+<PropertyList>
+  <nasal>
+    <fpslog>
+      <script><![CDATA[
+var fpslog_timer = maketimer(5, func {
+    print(sprintf("fpslog %s fps, %s view", getprop("/sim/frame-rate") or 0, getprop("/sim/current-view/name") or "-"));
+});
+fpslog_timer.simulatedTime = 0;
+fpslog_timer.start();
+      ]]></script>
+    </fpslog>
+  </nasal>
+</PropertyList>

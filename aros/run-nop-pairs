@@ -1,0 +1,23 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+Run >NIL: Execute FGTEST:same-pair twice 40960
+Wait 3
+Run >NIL: Execute FGTEST:same-pair twicenix 40960
+Wait 3
+Run >NIL: Execute FGTEST:same-pair cxxnop 40960
+Wait 3
+Run >NIL: Execute FGTEST:same-pair cxxnix 40960
+Wait 3
+Run >NIL: Execute FGTEST:same-pair cxxsg 40960
+Wait 4
+Run >NIL: Execute FGTEST:same-pair twice 1000000
+Wait 3
+Run >NIL: Execute FGTEST:same-pair twicenix 1000000
+Wait 3
+Run >NIL: Execute FGTEST:same-pair cxxnop 1000000
+Wait 3
+Run >NIL: Execute FGTEST:same-pair cxxnix 1000000
+Wait 3
+Run >NIL: Execute FGTEST:same-pair cxxsg 1000000
+Wait 4
+Echo "cp done" >DEBUG:

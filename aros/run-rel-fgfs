@@ -1,0 +1,9 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+; the release as a user starts it: no Stack, no Assign, no SetEnv, the ISO's own GL driver and ahi.device.
+; The only additions are the log on the serial line and the frame rate in it.
+CD FG:FlightGear
+Echo "starting fgfs" >DEBUG:
+fgfs --log-level=info --config=/FGTEST/fpslog.xml >DEBUG: *<>
+Echo "fgfs rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

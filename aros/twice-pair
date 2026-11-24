@@ -1,0 +1,7 @@
+.key LABEL/A,WHAT/F
+.bra {
+.ket }
+; twice-pair LABEL WORDS: one run of tests/twice that does WORDS, then a plain run, both from this Shell
+Failat 2147483647
+FGTEST:tests/twice {LABEL}-1 {WHAT}
+FGTEST:tests/twice {LABEL}-2

@@ -1,0 +1,15 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+Copy FGTEST:tests RAM:tests ALL QUIET
+Stack 4000000
+CD RAM:tests
+Echo "run undecorated" >DEBUG:
+osgwin --undecorated --size 640x480 --frames 500 >DEBUG:
+Echo "rc $RC" >DEBUG:
+Echo "run warp" >DEBUG:
+osgwin --warp --frames 500 >DEBUG:
+Echo "rc $RC" >DEBUG:
+Echo "run nocursor" >DEBUG:
+osgwin --nocursor --frames 500 >DEBUG:
+Echo "rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

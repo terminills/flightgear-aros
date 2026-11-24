@@ -1,0 +1,8 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+; the ReadMe points at "fgfs --help --verbose" for the list of options: it has to print it and come back
+CD FG:FlightGear
+Echo "starting fgfs --help --verbose" >DEBUG:
+fgfs --help --verbose >DEBUG: *<>
+Echo "fgfs rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

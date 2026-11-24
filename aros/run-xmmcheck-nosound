@@ -1,0 +1,26 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+Echo "xmmcheck alone" >DEBUG:
+FGTEST:tests/xmmcheck 20 >DEBUG:
+FGTEST:tests/xmmcheck 20 both >DEBUG:
+Assign LIBS: FG:libs ADD
+If EXISTS FGTEST:drivers
+  Assign LIBS: FGTEST:drivers ADD
+  SetEnv SYS/Gallium.default llvmpipe
+  Echo "gallium default llvmpipe" >DEBUG:
+EndIf
+If EXISTS FGTEST:devs
+  Avail FLUSH >NIL:
+  Assign DEVS: FGTEST:devs
+  Assign DEVS: SYS:Devs ADD
+  Echo "ahi.device of the test CD in front" >DEBUG:
+  List DEVS:ahi.device NOHEAD >DEBUG:
+EndIf
+Stack 4000000
+CD FG:
+Echo "xmmcheck beside fgfs without sound" >DEBUG:
+Run >NIL: FGTEST:tests/xmmcheck 200 both debug wait 100
+Echo "starting fgfs" >DEBUG:
+FG:fgfs --disable-sound --disable-terrasync --disable-real-weather-fetch --disable-ai-traffic --geometry=800x600 --graphics-preset=minimal-quality --timeofday=noon --log-level=info --config=/FGTEST/fpslog.xml --config=/FGTEST/enginestart.xml >DEBUG: *<>
+Echo "fgfs rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

@@ -1,0 +1,22 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+Execute FGTEST:net-up rtl8139.device
+SetEnv NAMESERVERS 10.0.2.3
+SetEnv SIMGEAR_TLS_CERT_PATH /ENV/SYS/Certificates/ca-bundle.crt
+Run >NIL: Execute FGTEST:sgnet-pair
+Wait 4
+Run >NIL: Execute FGTEST:sgnet-pair thread
+Wait 4
+Run >NIL: Execute FGTEST:sgnet-pair lookup
+Wait 5
+Run >NIL: Execute FGTEST:sgnet-pair naptr
+Wait 5
+Run >NIL: Execute FGTEST:sgnet-pair lookup naptr thread
+Wait 6
+Run >NIL: Execute FGTEST:sgnet-pair url http://terrasync.b-cdn.net/.dirindex
+Wait 8
+Run >NIL: Execute FGTEST:sgnet-pair url https://terrasync.b-cdn.net/.dirindex
+Wait 8
+Run >NIL: Execute FGTEST:sgnet-pair thread url https://terrasync.b-cdn.net/Terrain/w030n60/.dirindex
+Wait 10
+Echo "cp done" >DEBUG:

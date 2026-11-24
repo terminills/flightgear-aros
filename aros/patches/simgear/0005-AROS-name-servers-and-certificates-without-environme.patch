@@ -1,0 +1,55 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Mon, 23 Nov 2026 20:36:14 -0600
+Subject: [PATCH 5/8] AROS: name servers and certificates without environment
+ variables
+
+udns reads /etc/resolv.conf and $NAMESERVERS; AROS has neither by
+default, so the DNS client had no server and TerraSync's NAPTR query
+never returned. Without $NAMESERVERS the servers of bsdsocket.library
+are taken (fgaros_nameservers() of the port's compat library).
+
+The HTTP client had no certificate file unless SIMGEAR_TLS_CERT_PATH
+named one, and every https request failed. Without the variable the
+bundle AROS comes with (ENV:SYS/Certificates/ca-bundle.crt) is used
+when it is there.
+---
+ 3rdparty/udns/udns_init.c | 5 +++++
+ simgear/io/HTTPClient.cxx | 8 ++++++++
+ 2 files changed, 13 insertions(+)
+
+diff --git a/3rdparty/udns/udns_init.c b/3rdparty/udns/udns_init.c
+index c28d7c0..0913686 100644
+--- a/3rdparty/udns/udns_init.c
++++ b/3rdparty/udns/udns_init.c
+@@ -191,6 +191,11 @@ static int dns_init_resolvconf(struct dns_ctx *ctx) {
+     strncpy(buf, v, sizeof(buf) - 1);
+     dns_set_serv_internal(ctx, buf);
+   }
++#ifdef __AROS__
++  /* there is no resolv.conf: the servers bsdsocket.library uses */
++  else if (fgaros_nameservers(buf, sizeof(buf)) > 0)
++    dns_set_serv_internal(ctx, buf);
++#endif
+   /* if $LOCALDOMAIN is set, use it for search list */
+   if ((v = getenv("LOCALDOMAIN")) != NULL) {
+     strncpy(buf, v, sizeof(buf) - 1);
+diff --git a/simgear/io/HTTPClient.cxx b/simgear/io/HTTPClient.cxx
+index 44c41e6..c856b3d 100644
+--- a/simgear/io/HTTPClient.cxx
++++ b/simgear/io/HTTPClient.cxx
+@@ -146,6 +146,14 @@ void Client::reset()
+     d->curlPerformActive = false;
+     setUserAgent("SimGear-" SG_STRINGIZE(SIMGEAR_VERSION));
+     d->tlsCertificatePath = SGPath::fromEnv("SIMGEAR_TLS_CERT_PATH");
++#if defined(__AROS__)
++    // the certificates AROS comes with (ENV:SYS/Certificates)
++    if (d->tlsCertificatePath.isNull()) {
++        const SGPath bundle("/ENV/SYS/Certificates/ca-bundle.crt");
++        if (bundle.exists())
++            d->tlsCertificatePath = bundle;
++    }
++#endif
+     d->createCurlMulti();
+ }
+ 

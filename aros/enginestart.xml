@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<!-- fgfs -\-config=/FGTEST/enginestart.xml: something to hear for the sound test. 60 s after Nasal starts a sample
+     is played, 60 s after that the Cessna 172P's own autostart runs; the engine's state goes to the log with the frame rate. -->
+<PropertyList>
+  <nasal>
+    <enginestart>
+      <script><![CDATA[
+var enginestart_go = maketimer(60, func {
+    print("enginestart: c172p.autostart()");
+    c172p.autostart(0);
+    print("enginestart: autostart returned");
+});
+enginestart_go.simulatedTime = 0; enginestart_go.singleShot = 1;
+var enginestart_beep = maketimer(60, func {
+    print("enginestart: play-audio-sample");
+    var ok = fgcommand("play-audio-sample", props.Node.new({ path: getprop("/sim/fg-root") ~ "/Sounds", file: "beep.wav", volume: 1.0 }));
+    print("enginestart: play-audio-sample beep.wav -> " ~ ok);
+    enginestart_go.start();
+});
+enginestart_beep.simulatedTime = 0; enginestart_beep.singleShot = 1; enginestart_beep.start();
+var enginestart_log = maketimer(5, func {
+    print(sprintf("enginelog rpm %d, running %s, sound enabled %s, volume %s", getprop("/engines/engine[0]/rpm") or 0,
+        getprop("/engines/engine[0]/running") or 0, getprop("/sim/sound/enabled") or 0, getprop("/sim/sound/volume") or 0));
+});
+enginestart_log.simulatedTime = 0; enginestart_log.start();
+      ]]></script>
+    </enginestart>
+  </nasal>
+</PropertyList>

@@ -1,0 +1,12 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+; the release drawer's fgfs on the drawer's llvmpipe.hidd, selected the way the ReadMe says, with the frame-rate
+; measurement of aros/fpsrun.xml; no network. package-test.sh puts FGARGS in the place of the marker.
+CD FG:FlightGear
+Execute UseLLVMpipe
+Echo "UseLLVMpipe rc $RC" >DEBUG:
+GetEnv SYS/Gallium.default >DEBUG:
+Echo "starting fgfs @FGARGS@" >DEBUG:
+fgfs @FGARGS@ --log-level=info --config=/FGTEST/fpsrun.xml >DEBUG: *<>
+Echo "fgfs rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

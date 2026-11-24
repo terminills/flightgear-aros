@@ -1,0 +1,50 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Sun, 22 Nov 2026 18:35:33 -0600
+Subject: [PATCH 3/8] AROS: no position-independent code; a home directory
+ without HOME
+
+- CMakeLists: the GNU warning flags carry -fPIC. AROS loads relocatable
+  objects and its loader takes no global offset table relocations, so a
+  program linked with these libraries was refused ("file is not
+  executable").
+- SGPath::home(): without HOME the program's own drawer (/PROGDIR, for a
+  program linked with -nix) instead of an empty path, so $FG_HOME and the
+  download directory are absolute paths.
+
+Found by running fgfs on AROS.
+---
+ CMakeLists.txt           | 5 +++++
+ simgear/misc/sg_path.cxx | 3 +++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 9e8737b..e99d8ef 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -305,6 +305,11 @@ check_cxx_source_compiles(
+ if(CMAKE_COMPILER_IS_GNUCXX)
+     set(WARNING_FLAGS_CXX "-Wall -fPIC")
+     set(WARNING_FLAGS_C   "-Wall -fPIC")
++    if (AROS)
++        # AROS loads statically linked code: no global offset table
++        set(WARNING_FLAGS_CXX "-Wall")
++        set(WARNING_FLAGS_C   "-Wall")
++    endif()
+ 
+     if (X86 OR X86_64)
+         set(SIMD_COMPILER_FLAGS "-msse2 -mfpmath=sse -ftree-vectorize -ftree-slp-vectorize")
+diff --git a/simgear/misc/sg_path.cxx b/simgear/misc/sg_path.cxx
+index b175df9..0892751 100644
+--- a/simgear/misc/sg_path.cxx
++++ b/simgear/misc/sg_path.cxx
+@@ -1097,6 +1097,9 @@ SGPath SGPath::home(const SGPath& def)
+ {
+ #ifdef _WIN32
+     return fromEnv("USERPROFILE", def);
++#elif defined(__AROS__)
++    // without HOME: the program's own drawer
++    return fromEnv("HOME", def.isNull() ? SGPath("/PROGDIR", def._permission_checker) : def);
+ #else
+     return fromEnv("HOME", def);
+ #endif

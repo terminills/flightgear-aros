@@ -1,0 +1,16 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+Copy FGTEST:fgfs RAM:fgfs QUIET
+Echo "copied rc $RC" >DEBUG:
+Assign LIBS: FGTEST:libs ADD
+If EXISTS FGTEST:drivers
+  Assign LIBS: FGTEST:drivers ADD
+  SetEnv SYS/Gallium.default llvmpipe
+  Echo "gallium default llvmpipe" >DEBUG:
+EndIf
+Stack 4000000
+CD RAM:
+Echo "starting fgfs" >DEBUG:
+fgfs --fg-root=/FGTEST/fgdata --disable-terrasync --disable-real-weather-fetch --disable-ai-traffic --disable-sound --geometry=800x600 --graphics-preset=minimal-quality --timeofday=noon --log-level=info >DEBUG: *<>
+Echo "fgfs rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

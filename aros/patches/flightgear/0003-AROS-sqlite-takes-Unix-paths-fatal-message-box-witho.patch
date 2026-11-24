@@ -1,0 +1,86 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Sun, 22 Nov 2026 18:51:37 -0600
+Subject: [PATCH 3/7] AROS: sqlite takes Unix paths; fatal message box without
+ the GUI subsystem
+
+- sqlite3: fgfs is linked with -nix, so the C library takes Unix path
+  syntax and sqlite's own path code is right as it is. The "Volume:"
+  path changes of the first AROS commit took the leading slash off every
+  absolute path ("unable to open database file" for the navigation
+  cache).
+- MessageBox: fatalMessageBoxWithoutExit() used the NewGUI subsystem
+  without looking whether it exists; during start-up it does not, with
+  /sim/rendering/initialized already set (a build without Qt only).
+  Same test as modalMessageBox() has.
+
+Found by running fgfs on AROS.
+---
+ 3rdparty/sqlite3/sqlite3.c | 13 +------------
+ src/GUI/MessageBox.cxx     |  4 ++--
+ 2 files changed, 3 insertions(+), 14 deletions(-)
+
+diff --git a/3rdparty/sqlite3/sqlite3.c b/3rdparty/sqlite3/sqlite3.c
+index 528c780..e1c5087 100644
+--- a/3rdparty/sqlite3/sqlite3.c
++++ b/3rdparty/sqlite3/sqlite3.c
+@@ -39619,7 +39619,7 @@ static struct vxworksFileId *vxworksFindFileId(const char *zAbsoluteName){
+   struct vxworksFileId *pCandidate;   /* For looping over existing file IDs */
+   int n;                              /* Length of zAbsoluteName string */
+ 
+-  assert( zAbsoluteName[0]=='/' || strchr(zAbsoluteName, ':') );
++  assert( zAbsoluteName[0]=='/' );
+   n = (int)strlen(zAbsoluteName);
+   pNew = sqlite3_malloc64( sizeof(*pNew) + (n+1) );
+   if( pNew==0 ) return 0;
+@@ -42327,11 +42327,7 @@ static int openDirectory(const char *zFilename, int *pFd){
+   char zDirname[MAX_PATHNAME+1];
+ 
+   sqlite3_snprintf(MAX_PATHNAME, zDirname, "%s", zFilename);
+-#ifdef __AROS__
+-  for(ii=(int)strlen(zDirname); ii>0 && zDirname[ii]!='/' && zDirname[ii-1]!=':'; ii--);
+-#else
+   for(ii=(int)strlen(zDirname); ii>0 && zDirname[ii]!='/'; ii--);
+-#endif
+   if( ii>0 ){
+     zDirname[ii] = '\0';
+   }else{
+@@ -45249,9 +45245,6 @@ static void appendOnePathElement(
+     return;
+   }
+   pPath->zOut[pPath->nUsed++] = '/';
+-#ifdef __AROS__
+-  if( pPath->nUsed==1 ) pPath->nUsed--;   /* "Volume:dir", not "/Volume:dir" */
+-#endif
+   memcpy(&pPath->zOut[pPath->nUsed], zName, nName);
+   pPath->nUsed += nName;
+ #if defined(HAVE_READLINK) && defined(HAVE_LSTAT)
+@@ -45328,11 +45321,7 @@ static int unixFullPathname(
+   path.nSymlink = 0;
+   path.nOut = nOut;
+   path.zOut = zOut;
+-#ifdef __AROS__
+-  if( zPath[0]!='/' && strchr(zPath, ':')==NULL ){
+-#else
+   if( zPath[0]!='/' ){
+-#endif
+     char zPwd[SQLITE_MAX_PATHLEN+2];
+     if( osGetcwd(zPwd, sizeof(zPwd)-2)==0 ){
+       return unixLogError(SQLITE_CANTOPEN_BKPT, "getcwd", zPath);
+diff --git a/src/GUI/MessageBox.cxx b/src/GUI/MessageBox.cxx
+index 97fcfc0..4235c21 100644
+--- a/src/GUI/MessageBox.cxx
++++ b/src/GUI/MessageBox.cxx
+@@ -199,10 +199,10 @@ MessageBoxResult fatalMessageBoxWithoutExit(const std::string& caption,
+     if (!moreText.empty()) {
+         s += "\n( " +  moreText + ")";
+     }
+-    if (fgGetBool("/sim/rendering/initialized", false) == false) {
++    auto _gui = globals->get_subsystem<NewGUI>();
++    if (fgGetBool("/sim/rendering/initialized", false) == false || !_gui) {
+         std::cerr << s << std::endl;
+     } else {
+-        auto _gui = globals->get_subsystem<NewGUI>();
+         SGPropertyNode_ptr dlg = _gui->getDialogProperties("popup");
+         dlg->setStringValue("text/label", s  );
+         _gui->showDialog("popup");

@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Sun, 22 Nov 2026 19:33:51 -0600
+Subject: [PATCH 4/7] AROS: no volume requesters
+
+FGData names files as "/Aircraft/...", and such a path is tried as
+written before it is looked for under FG_ROOT. With Unix path syntax on
+AROS that is the volume "Aircraft:", and DOS asks for it to be inserted.
+main() turns the requesters off for the process (fgaros_no_requesters()
+of the port's libfgaros); threads inherit that.
+---
+ src/Main/bootstrap.cxx | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/src/Main/bootstrap.cxx b/src/Main/bootstrap.cxx
+index ab20ae2..a8670bb 100755
+--- a/src/Main/bootstrap.cxx
++++ b/src/Main/bootstrap.cxx
+@@ -274,8 +274,15 @@ bool detectSIMD() { return true; }
+ int _bootstrap_OSInit;
+ 
+ // Main entry point; catch any exceptions that have made it this far.
++#if defined(__AROS__)
++extern "C" void fgaros_no_requesters(void);
++#endif
++
+ int main ( int argc, char **argv )
+ {
++#if defined(__AROS__)
++    fgaros_no_requesters();
++#endif
+     // we don't want to accidently show a GUI box and block startup in
+     // non_GUI setups, so check this value early here, before options are
+     // processed

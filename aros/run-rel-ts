@@ -1,0 +1,11 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+; the release drawer's fgfs on the drawer's llvmpipe.hidd with the network running and TerraSync on; nothing else is set
+Execute FGTEST:net-up rtl8139.device
+CD FG:FlightGear
+Execute UseLLVMpipe
+Echo "UseLLVMpipe rc $RC" >DEBUG:
+Echo "starting fgfs" >DEBUG:
+fgfs --enable-terrasync --start-date-lat=2026:06:21:12:00:00 --log-level=info --config=/FGTEST/fpsrun.xml >DEBUG: *<>
+Echo "fgfs rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

@@ -1,0 +1,473 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Mon, 23 Nov 2026 11:58:55 -0600
+Subject: [PATCH 5/7] AROS: joysticks through controller.hidd
+
+A jsJoystick backend for AROS's game controller subsystem (controller.hidd,
+fed by the USB HID class). The OOP calls are in C (jsAROS_hidd.c); the C++
+side (jsAROS.cxx) only fills in the class.
+
+Joystick numbers: a controller keeps its number while it is there, and a
+controller that has no number yet takes the lowest free one, whichever
+joystick object is being opened. FlightGear re-opens every joystick that
+does not work once a second, 16 of them; without that rule a stick that
+comes back is given to whichever of them asks first, usually one that has
+no bindings.
+
+Axes are numbered as Linux's joydev numbers a HID device's (X, Y, Z, Rx,
+Ry, Rz, throttle, rudder, wheel, gas, brake, then the rest), followed by
+two axes per hat, and the name is "Maker Product": that is what FGData's
+joystick files match on and count in (<unix>). Axis values are what the
+controller subsystem hands out, -32767..32767 with its own dead zone; an
+axis with one direction is spread over the same range. The first 32
+buttons are passed on.
+---
+ 3rdparty/joystick/CMakeLists.txt |   2 +
+ 3rdparty/joystick/jsAROS.cxx     |  87 ++++++++++
+ 3rdparty/joystick/jsAROS_hidd.c  | 277 +++++++++++++++++++++++++++++++
+ 3rdparty/joystick/jsAROS_hidd.h  |  45 +++++
+ 4 files changed, 411 insertions(+)
+ create mode 100644 3rdparty/joystick/jsAROS.cxx
+ create mode 100644 3rdparty/joystick/jsAROS_hidd.c
+ create mode 100644 3rdparty/joystick/jsAROS_hidd.h
+
+diff --git a/3rdparty/joystick/CMakeLists.txt b/3rdparty/joystick/CMakeLists.txt
+index 4e183e5..bbc9bfe 100644
+--- a/3rdparty/joystick/CMakeLists.txt
++++ b/3rdparty/joystick/CMakeLists.txt
+@@ -17,6 +17,8 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+ 		# check_function_exists(hidinit)
+ 		set(JS_LIBS ${USBHID_LIBRARY})
+ 		set(JS_SOURCES js.cxx jsBSD.cxx)
++elseif(CMAKE_SYSTEM_NAME MATCHES "AROS")
++		set(JS_SOURCES js.cxx jsAROS.cxx jsAROS_hidd.c)
+ else()
+ 		message(WARNING "Unsupported platform for  Joystick")
+ 		set(JS_SOURCES js.cxx jsNone.cxx)
+diff --git a/3rdparty/joystick/jsAROS.cxx b/3rdparty/joystick/jsAROS.cxx
+new file mode 100644
+index 0000000..d19de82
+--- /dev/null
++++ b/3rdparty/joystick/jsAROS.cxx
+@@ -0,0 +1,87 @@
++/*
++     PLIB - A Suite of Portable Game Libraries
++     Copyright (C) 1998,2002  Steve Baker
++
++     This library is free software; you can redistribute it and/or
++     modify it under the terms of the GNU Library General Public
++     License as published by the Free Software Foundation; either
++     version 2 of the License, or (at your option) any later version.
++
++     This library is distributed in the hope that it will be useful,
++     but WITHOUT ANY WARRANTY; without even the implied warranty of
++     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++     Library General Public License for more details.
++
++     You should have received a copy of the GNU Library General Public
++     License along with this library; if not, write to the Free Software
++     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
++
++     For further information visit http://plib.sourceforge.net
++*/
++
++// AROS: the game controllers of controller.hidd, with the axes in the order of the Linux joystick driver.
++
++#include "FlightGear_js.h"
++#include "jsAROS_hidd.h"
++
++#include <cstring>
++
++struct os_specific_s {
++  struct fgaros_js js;
++};
++
++void jsInit()
++{
++  fgaros_js_init();
++}
++
++void jsJoystick::open()
++{
++  name[0] = '\0';
++  num_axes = num_buttons = 0;
++
++  error = !fgaros_js_open(id, &os->js);
++  if (error)
++    return;
++
++  memcpy(name, os->js.name, sizeof(name));
++  name[sizeof(name) - 1] = '\0';
++  num_axes = os->js.num_axes;
++  num_buttons = os->js.num_buttons;
++
++  for (int i = 0; i < _JS_MAX_AXES; i++) {
++    max[i] = 32767.0f;
++    center[i] = 0.0f;
++    min[i] = -32767.0f;
++    dead_band[i] = 0.0f;
++    saturate[i] = 1.0f;
++  }
++}
++
++void jsJoystick::close()
++{
++  delete os;
++  os = NULL;
++}
++
++jsJoystick::jsJoystick(int ident)
++{
++  id = ident;
++  os = new struct os_specific_s;
++  open();
++}
++
++void jsJoystick::rawRead(int* buttons, float* axes)
++{
++  if (!error && !fgaros_js_read(&os->js, buttons, axes))
++    setError();
++
++  if (error) {
++    if (buttons)
++      *buttons = 0;
++
++    if (axes)
++      for (int i = 0; i < _JS_MAX_AXES; i++)
++        axes[i] = 1500.0f;
++  }
++}
+diff --git a/3rdparty/joystick/jsAROS_hidd.c b/3rdparty/joystick/jsAROS_hidd.c
+new file mode 100644
+index 0000000..1da5606
+--- /dev/null
++++ b/3rdparty/joystick/jsAROS_hidd.c
+@@ -0,0 +1,277 @@
++/*
++     The AROS side of jsAROS.cxx: game controllers of controller.hidd.
++
++     This library is free software; you can redistribute it and/or
++     modify it under the terms of the GNU Library General Public
++     License as published by the Free Software Foundation; either
++     version 2 of the License, or (at your option) any later version.
++
++     This library is distributed in the hope that it will be useful,
++     but WITHOUT ANY WARRANTY; without even the implied warranty of
++     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++     Library General Public License for more details.
++*/
++
++#include <exec/types.h>
++#include <exec/libraries.h>
++#include <proto/exec.h>
++
++static struct Library *js_OOPBase;
++#define OOPBase js_OOPBase
++
++#include <proto/oop.h>
++#include <hidd/hidd.h>
++#include <hidd/controller.h>
++
++#include <string.h>
++
++#include "jsAROS_hidd.h"
++
++#define MAX_JOYSTICKS 16
++#define MAX_IDS       64
++
++/* fgaros_js.src: an axis of the controller, one that runs from 0 only, or half of a hat */
++#define SRC_INDEX    0x1f
++#define SRC_UNIPOLAR 0x20
++#define SRC_HAT_X    0x40
++#define SRC_HAT_Y    0x80
++
++#define NO_ID 0xffffffffUL
++
++OOP_AttrBase HiddAttrBase;
++OOP_AttrBase HWAttrBase;
++OOP_AttrBase HiddControllerAB;
++OOP_AttrBase HWControllerAB;
++
++static const struct OOP_ABDescr attrbases[] =
++{
++    { (CONST_STRPTR)IID_Hidd,            &HiddAttrBase     },
++    { (CONST_STRPTR)IID_HW,              &HWAttrBase       },
++    { (CONST_STRPTR)IID_Hidd_Controller, &HiddControllerAB },
++    { (CONST_STRPTR)IID_HW_Controller,   &HWControllerAB   },
++    { NULL,                NULL              }
++};
++
++static struct Library *ControllerHiddBase;
++static OOP_Object *hw;
++
++/* The controller each joystick number has. FlightGear asks for a number again and again while it has none, and a
++   controller keeps its number for as long as it is there. */
++static ULONG slots[MAX_JOYSTICKS];
++
++int fgaros_js_init(void)
++{
++    int i;
++
++    if (hw)
++        return 1;
++
++    for (i = 0; i < MAX_JOYSTICKS; i++)
++        slots[i] = NO_ID;
++
++    if (!OOPBase)
++        OOPBase = OpenLibrary((CONST_STRPTR)"oop.library", 0);
++    if (!OOPBase)
++        return 0;
++    if (!ControllerHiddBase)
++        ControllerHiddBase = OpenLibrary((CONST_STRPTR)"controller.hidd", 0);
++    if (!ControllerHiddBase)
++        return 0;
++    if (!HWControllerAB && !OOP_ObtainAttrBases(attrbases))
++        return 0;
++
++    hw = OOP_NewObject(NULL, (CONST_STRPTR)CLID_HW_Controller, NULL);
++    return hw != NULL;
++}
++
++/* The controller with this id, if it is there and connected. Call between Forbid() and Permit(). */
++static OOP_Object *find(ULONG id)
++{
++    OOP_Object *dev = HW_Controller_FindDevice(hw, id);
++    IPTR connected = FALSE;
++
++    if (dev)
++        OOP_GetAttr(dev, aHidd_Controller_Connected, &connected);
++    return connected ? dev : NULL;
++}
++
++/* The place of an axis in the order Linux's joydev gives a HID device's axes, which is the order FGData's
++   joystick files count in: X, Y, Z, Rx, Ry, Rz, throttle, rudder, wheel, gas, brake. */
++static int axis_code(const struct Hidd_Controller_ControlDesc *cd)
++{
++    if (cd->usage_page == 0x01)
++    {
++        if (cd->usage >= 0x30 && cd->usage <= 0x38)
++            return cd->usage - 0x30;
++    }
++    else if (cd->usage_page == 0x02)
++    {
++        switch (cd->usage)
++        {
++        case 0xbb: return 6;
++        case 0xba: return 7;
++        case 0xc8: return 8;
++        case 0xc4: return 9;
++        case 0xc5: return 10;
++        }
++    }
++    return -1;
++}
++
++static void describe(OOP_Object *dev, struct fgaros_js *js)
++{
++    struct Hidd_Controller_ControlDesc cd;
++    IPTR product = 0, maker = 0, n = 0;
++    unsigned char code[48];
++    int i, c, hats;
++
++    OOP_GetAttr(dev, aHidd_HardwareName, &product);
++    if (!product || !*(const char *)product)
++        OOP_GetAttr(dev, aHidd_Name, &product);
++    OOP_GetAttr(dev, aHidd_Controller_Manufacturer, &maker);
++
++    /* "Maker Product", as Linux names a USB device, unless the product's name begins with the maker's */
++    js->name[0] = '\0';
++    if (maker && *(const char *)maker && product &&
++        strncmp((const char *)product, (const char *)maker, strlen((const char *)maker)) != 0)
++    {
++        strncat(js->name, (const char *)maker, sizeof(js->name) - 2);
++        strcat(js->name, " ");
++    }
++    if (product)
++        strncat(js->name, (const char *)product, sizeof(js->name) - strlen(js->name) - 1);
++
++    OOP_GetAttr(dev, aHidd_Controller_ButtonCount, &n);
++    js->num_buttons = n > 32 ? 32 : (int)n;
++
++    /* code[c] is the axis with place c; an axis whose place is taken, or that has none, gets the next free one */
++    memset(code, 0xff, sizeof(code));
++    n = 0;
++    OOP_GetAttr(dev, aHidd_Controller_AxisCount, &n);
++    if (n > HIDD_CONTROLLER_MAX_AXES)
++        n = HIDD_CONTROLLER_MAX_AXES;
++    for (i = 0; i < (int)n; i++)
++    {
++        memset(&cd, 0, sizeof(cd));
++        if (!HIDD_Controller_GetControlInfo(dev, vHidd_Controller_Ctl_Axis, i, &cd))
++            continue;
++        c = axis_code(&cd);
++        if (c < 0)
++            c = 11;
++        while (c < (int)sizeof(code) && code[c] != 0xff)
++            c++;
++        if (c < (int)sizeof(code))
++            code[c] = i | ((cd.flags & vHidd_Controller_CF_Unipolar) ? SRC_UNIPOLAR : 0);
++    }
++
++    js->num_axes = 0;
++    for (c = 0; c < (int)sizeof(code); c++)
++        if (code[c] != 0xff)
++            js->src[js->num_axes++] = code[c];
++
++    n = 0;
++    OOP_GetAttr(dev, aHidd_Controller_HatCount, &n);
++    hats = n > HIDD_CONTROLLER_MAX_HATS ? HIDD_CONTROLLER_MAX_HATS : (int)n;
++    for (i = 0; i < hats && js->num_axes + 2 <= FGAROS_JS_MAX_AXES; i++)
++    {
++        js->src[js->num_axes++] = SRC_HAT_X | i;
++        js->src[js->num_axes++] = SRC_HAT_Y | i;
++    }
++}
++
++int fgaros_js_open(int ident, struct fgaros_js *js)
++{
++    UWORD ids[MAX_IDS];
++    OOP_Object *dev = NULL;
++    ULONG n, i;
++    int s;
++
++    if (!hw || ident < 0 || ident >= MAX_JOYSTICKS)
++        return 0;
++
++    Forbid();
++
++    for (s = 0; s < MAX_JOYSTICKS; s++)
++        if (slots[s] != NO_ID && !find(slots[s]))
++            slots[s] = NO_ID;
++
++    /* A controller that has no number yet takes the lowest free one, whichever joystick is being opened:
++       a controller that comes back is then joystick 0 again, as a new /dev/input/js0 would be. */
++    n = HW_Controller_GetDeviceIDs(hw, ids, MAX_IDS);
++    if (n > MAX_IDS)
++        n = MAX_IDS;
++    for (i = 0; i < n; i++)
++    {
++        for (s = 0; s < MAX_JOYSTICKS && slots[s] != ids[i]; s++)
++            ;
++        if (s < MAX_JOYSTICKS || !find(ids[i]))
++            continue;
++        for (s = 0; s < MAX_JOYSTICKS && slots[s] != NO_ID; s++)
++            ;
++        if (s < MAX_JOYSTICKS)
++            slots[s] = ids[i];
++    }
++
++    if (slots[ident] != NO_ID && (dev = find(slots[ident])))
++    {
++        js->id = slots[ident];
++        describe(dev, js);
++    }
++
++    Permit();
++    return dev != NULL;
++}
++
++int fgaros_js_read(const struct fgaros_js *js, int *buttons, float *axes)
++{
++    struct pHidd_Controller_Reading rd;
++    OOP_Object *dev;
++    int i, ok = 0;
++
++    if (!hw)
++        return 0;
++
++    memset(&rd, 0, sizeof(rd));
++    rd.size = sizeof(rd);
++
++    Forbid();
++    if ((dev = find(js->id)))
++        ok = HIDD_Controller_GetReading(dev, &rd) && (rd.flags & vHidd_Controller_RF_Connected);
++    Permit();
++
++    if (!ok)
++        return 0;
++
++    if (buttons)
++        *buttons = (int)rd.buttons[0];
++
++    if (axes)
++    {
++        for (i = 0; i < js->num_axes; i++)
++        {
++            unsigned char src = js->src[i];
++            int k = src & SRC_INDEX;
++            float v;
++
++            if (src & (SRC_HAT_X | SRC_HAT_Y))
++            {
++                UBYTE h = rd.hats[k & 3];
++
++                if (src & SRC_HAT_X)
++                    v = (h & vHidd_Controller_Hat_Right) ? 32767.0f : (h & vHidd_Controller_Hat_Left) ? -32767.0f : 0.0f;
++                else
++                    v = (h & vHidd_Controller_Hat_Down) ? 32767.0f : (h & vHidd_Controller_Hat_Up) ? -32767.0f : 0.0f;
++            }
++            else if (src & SRC_UNIPOLAR)
++                v = 2.0f * rd.axes[k & 15] - 32767.0f;
++            else
++            {
++                v = rd.axes[k & 15];
++                if (v < -32767.0f)
++                    v = -32767.0f;
++            }
++            axes[i] = v;
++        }
++    }
++    return 1;
++}
+diff --git a/3rdparty/joystick/jsAROS_hidd.h b/3rdparty/joystick/jsAROS_hidd.h
+new file mode 100644
+index 0000000..8a1cb28
+--- /dev/null
++++ b/3rdparty/joystick/jsAROS_hidd.h
+@@ -0,0 +1,45 @@
++/*
++     The AROS side of jsAROS.cxx: game controllers of controller.hidd.
++
++     This library is free software; you can redistribute it and/or
++     modify it under the terms of the GNU Library General Public
++     License as published by the Free Software Foundation; either
++     version 2 of the License, or (at your option) any later version.
++
++     This library is distributed in the hope that it will be useful,
++     but WITHOUT ANY WARRANTY; without even the implied warranty of
++     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++     Library General Public License for more details.
++*/
++
++#ifndef FG_JS_AROS_HIDD_H
++#define FG_JS_AROS_HIDD_H
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++#define FGAROS_JS_MAX_AXES 32
++
++struct fgaros_js {
++    unsigned short id;                      /* the controller's id in controller.hidd */
++    int num_axes;
++    int num_buttons;
++    char name[128];
++    unsigned char src[FGAROS_JS_MAX_AXES];  /* where each axis comes from, see jsAROS_hidd.c */
++};
++
++/* Opens controller.hidd. Returns 0 when the system has none. May be called more than once. */
++int fgaros_js_init(void);
++
++/* Fills *js with the controller of joystick number ident. Returns 0 when there is none. */
++int fgaros_js_open(int ident, struct fgaros_js *js);
++
++/* Reads the buttons (bit n is button n) and the axes (-32767 to 32767). Returns 0 when the controller is gone. */
++int fgaros_js_read(const struct fgaros_js *js, int *buttons, float *axes);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif

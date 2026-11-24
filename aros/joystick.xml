@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<!-- fgfs -\-config=/FGTEST/joystick.xml: what joystick 0 is and what it does to the controls, into the log every
+     second (the test VM's serial line). For aros/run-fgfs-js, where a simulated stick moves by itself. -->
+<PropertyList>
+  <nasal>
+    <jslog>
+      <script><![CDATA[
+var jslog_n = 0;
+var jslog_wrapped = 0;
+var jslog_mods = func {
+    var m = "";
+    foreach (var k; ["shift", "ctrl", "alt", "meta", "super", "hyper"])
+        if (getprop("/devices/status/keyboard/" ~ k)) m ~= k ~ " ";
+    return m == "" ? "-" : m;
+};
+setlistener("/devices/status/joysticks/joystick[0]/button[0]", func(n) {
+    print(sprintf("jslog button0 %d, modifier keys %s", n.getValue(), jslog_mods()));
+}, 0, 0);
+var jslog_timer = maketimer(1, func {
+    # the aircraft's own applyBrakes is there once its Nasal has run
+    if (!jslog_wrapped and getprop("/sim/signals/fdm-initialized")) {
+        jslog_wrapped = 1;
+        var inner = controls.applyBrakes;
+        controls.applyBrakes = func(v, which = 0) {
+            print(sprintf("jslog applyBrakes(%d)", v));
+            inner(v, which);
+        };
+    }
+    jslog_n += 1;
+    print(sprintf("jslog %d: js0 '%s' aileron %.2f elevator %.2f rudder %.2f throttle %.2f brake %.2f button0 %d view %d/%d, %s fps",
+        jslog_n, getprop("/input/joysticks/js[0]/id") or "-",
+        getprop("/controls/flight/aileron") or 0, getprop("/controls/flight/elevator") or 0,
+        getprop("/controls/flight/rudder") or 0, getprop("/controls/engines/engine[0]/throttle") or 0,
+        getprop("/controls/gear/brake-left") or 0, getprop("/devices/status/joysticks/joystick[0]/button[0]") or 0,
+        getprop("/sim/current-view/goal-heading-offset-deg") or 0, getprop("/sim/current-view/goal-pitch-offset-deg") or 0,
+        getprop("/sim/frame-rate") or 0));
+});
+jslog_timer.simulatedTime = 0;
+jslog_timer.start();
+      ]]></script>
+    </jslog>
+  </nasal>
+</PropertyList>

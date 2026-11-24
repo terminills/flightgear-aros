@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Sun, 22 Nov 2026 18:12:45 -0600
+Subject: [PATCH 2/8] AROS: expat's arc4random_buf() source file
+
+The configuration header already selects arc4random_buf() as the entropy
+source on AROS, but the source list still took the /dev/urandom file, so
+writeRandomBytes_arc4random_buf() was missing when a program linked
+libFGExpat.a.
+
+Found by linking fgfs.
+---
+ 3rdparty/expat/CMakeLists.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/3rdparty/expat/CMakeLists.txt b/3rdparty/expat/CMakeLists.txt
+index 024dd0c..ffeb478 100644
+--- a/3rdparty/expat/CMakeLists.txt
++++ b/3rdparty/expat/CMakeLists.txt
+@@ -49,7 +49,7 @@ target_sources(FGExpat PRIVATE
+ 
+ if (WIN32)
+     target_sources(FGExpat PRIVATE random_rand_s.c random_rand_s.h)
+-elseif(APPLE)
++elseif(APPLE OR AROS)
+     target_sources(FGExpat PRIVATE random_arc4random_buf.c random_arc4random_buf.h)
+ elseif(HAVE_GETRANDOM)
+     target_sources(FGExpat PRIVATE random_getrandom.c random_getrandom.h)

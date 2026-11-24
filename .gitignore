@@ -1,0 +1,10 @@
+work/
+upstream/dl/
+upstream/src/
+out/
+logs/
+work-*/
+local.env
+logs-*/
+out-*/
+evidence/

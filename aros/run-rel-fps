@@ -1,0 +1,9 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+; the release drawer's fgfs with a frame-rate measurement that ends by itself (aros/fpsrun.xml); no network,
+; the ISO's own GL driver unless the CD has another. package-test.sh puts FGARGS in the place of the marker.
+CD FG:FlightGear
+Echo "starting fgfs @FGARGS@" >DEBUG:
+fgfs @FGARGS@ --log-level=info --config=/FGTEST/fpsrun.xml >DEBUG: *<>
+Echo "fgfs rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

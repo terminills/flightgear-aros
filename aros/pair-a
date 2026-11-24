@@ -1,0 +1,4 @@
+Failat 2147483647
+Echo "pair a" >DEBUG:
+FGTEST:tests/twice a
+FGTEST:tests/twice after-a

@@ -1,0 +1,55 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Tue, 24 Nov 2026 00:26:04 -0600
+Subject: [PATCH 7/7] Navigation cache rebuild: the splash loop sleeps as long
+ as its frames take
+
+While the navigation cache is rebuilt in its thread, fgInitNav() returns to
+the main loop after a sleep of 50 msec, and the main loop draws a frame of
+the splash screen. Where that frame takes seconds (software rendering on one
+CPU) the rebuild thread gets a small part of the processor. The sleep is now
+three times the time the frame before took, between 50 msec and 5 s, so the
+rebuild has three quarters of the time whatever a frame costs; with frames
+of 16 msec nothing changes.
+
+Measured on AROS in QEMU/KVM with one CPU on the softpipe GL driver,
+1024x768: "cache rebuild took" 904 s, against 2188 s with the fixed 50 msec
+(one run each).
+---
+ src/Main/fg_init.cxx | 16 ++++++++++++++--
+ 1 file changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/src/Main/fg_init.cxx b/src/Main/fg_init.cxx
+index e6c0891..1551440 100755
+--- a/src/Main/fg_init.cxx
++++ b/src/Main/fg_init.cxx
+@@ -9,6 +9,7 @@
+ 
+ #include <simgear/compiler.h>
+ 
++#include <algorithm>
+ #include <cstdio>
+ #include <cstdlib>
+ #include <cstring>             // strcmp()
+@@ -1006,8 +1007,19 @@ fgInitNav ()
+             fgSplashProgress(splashIdentsByRebuildPhase[phase],
+                              cache->rebuildPhaseCompletionPercentage());
+ 
+-            // sleep to give the rebuild thread more time
+-            SGTimeStamp::sleepForMSec(50);
++            // sleep to give the rebuild thread more time: three times as long as the frame
++            // before took to draw. Where a frame of the splash screen takes seconds (software
++            // rendering, one CPU) 50 msec left the thread a fortieth of the time.
++            static SGTimeStamp lastCall;
++            static int lastSleepMSec = 0;
++            int sleepMSec = 50;
++            if (lastSleepMSec > 0) {
++                const int frameMSec = lastCall.elapsedMSec() - lastSleepMSec;
++                sleepMSec = std::min(std::max(3 * frameMSec, 50), 5000);
++            }
++            lastCall.stamp();
++            lastSleepMSec = sleepMSec;
++            SGTimeStamp::sleepForMSec(sleepMSec);
+             return false;
+         }
+     }

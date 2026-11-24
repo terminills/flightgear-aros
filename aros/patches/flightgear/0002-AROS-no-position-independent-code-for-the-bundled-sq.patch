@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Sun, 22 Nov 2026 18:35:33 -0600
+Subject: [PATCH 2/7] AROS: no position-independent code for the bundled sqlite
+
+AROS's loader takes no global offset table relocations.
+---
+ 3rdparty/sqlite3/CMakeLists.txt | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/3rdparty/sqlite3/CMakeLists.txt b/3rdparty/sqlite3/CMakeLists.txt
+index 5aaf981..61a83c8 100644
+--- a/3rdparty/sqlite3/CMakeLists.txt
++++ b/3rdparty/sqlite3/CMakeLists.txt
+@@ -2,5 +2,10 @@
+ add_library(fgsqlite3 STATIC sqlite3.c)
+ 
+ target_compile_definitions(fgsqlite3 PRIVATE SQLITE_OMIT_LOAD_EXTENSION NDEBUG)
+-set_target_properties(fgsqlite3 PROPERTIES COMPILE_FLAGS "-fPIC -fno-fast-math")
++if(AROS)
++    # AROS loads statically linked code: no global offset table
++    set_target_properties(fgsqlite3 PROPERTIES COMPILE_FLAGS "-fno-fast-math")
++else()
++    set_target_properties(fgsqlite3 PROPERTIES COMPILE_FLAGS "-fPIC -fno-fast-math")
++endif()
+ target_include_directories(fgsqlite3 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

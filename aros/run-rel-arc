@@ -1,0 +1,19 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+; the two release archives unpacked on AROS itself with contrib's lha and UnZip (package-test.sh ARC=1; the
+; archives beside the drawer on FG:, make-hd.sh release FILE...), each into a drawer of its own; then the fgfs
+; that lha unpacked is started for its option list. The unpacked files are compared on the host afterwards.
+MakeDir FG:fromlha
+MakeDir FG:fromzip
+CD FG:fromlha
+Echo "starting lha" >DEBUG:
+FGTEST:arc/lha x FG:FlightGear-2024.1.7-AROS-rc1-x86_64.lha >DEBUG:
+Echo "lha rc $RC" >DEBUG:
+CD FG:fromzip
+Echo "starting unzip" >DEBUG:
+FGTEST:arc/UnZip FG:FlightGear-2024.1.7-AROS-rc1-x86_64.zip >DEBUG:
+Echo "unzip rc $RC" >DEBUG:
+CD FG:fromlha/FlightGear
+fgfs --help >DEBUG: *<>
+Echo "fgfs rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

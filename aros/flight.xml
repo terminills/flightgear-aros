@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<!-- fgfs -\-config=/FGTEST/flight.xml: a take-off without a pilot, for the test VM. With the flight model
+     initialised, the Cessna 172P's autostart runs; with the engine running for 15 s the brakes go off and the throttle in; rudder holds the
+     runway heading, from 50 kt the elevator holds 8 degrees of pitch, in the air the ailerons hold the heading.
+     State, frame rate, speed, height above the ground and position go to the log every five seconds. -->
+<PropertyList>
+  <nasal>
+    <flight>
+      <script><![CDATA[
+var flight = { state: "wait", n: 0, hdg: 0, t_run: 0, t_roll: 0, said: {} };
+var flight_clamp = func(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); };
+var flight_err = func(target, now) {
+    var e = target - now;
+    while (e > 180) { e -= 360; }
+    while (e < -180) { e += 360; }
+    return e;
+};
+var flight_log = maketimer(5, func {
+    flight.n += 1;
+    print(sprintf("flight %s: %s fps, %d kt, %d ft above ground, heading %d, pitch %.1f, roll %.1f, rpm %d, lat %.5f lon %.5f",
+        flight.state, getprop("/sim/frame-rate") or 0, getprop("/velocities/airspeed-kt") or 0,
+        getprop("/position/altitude-agl-ft") or 0, getprop("/orientation/heading-deg") or 0,
+        getprop("/orientation/pitch-deg") or 0, getprop("/orientation/roll-deg") or 0,
+        getprop("/engines/engine[0]/rpm") or 0, getprop("/position/latitude-deg") or 0, getprop("/position/longitude-deg") or 0));
+    # autostart holds the starter for five seconds, once: not before the flight model is there, and again if the
+    # engine did not catch
+    if ((flight.state == "wait" or flight.state == "start") and getprop("/sim/signals/fdm-initialized")
+        and !getprop("/engines/engine[0]/running") and math.mod(flight.n, 4) == 0) {
+        print("flight: c172p.autostart()");
+        c172p.autostart(0);
+        flight.state = "start";
+    } elsif (flight.state == "start" and getprop("/engines/engine[0]/running")) {
+        flight.t_run = getprop("/sim/time/elapsed-sec");
+        flight.state = "warm";
+        print("flight: engine running");
+    } elsif ((flight.state == "warm" or flight.state == "roll") and !getprop("/engines/engine[0]/running")
+             and (getprop("/velocities/airspeed-kt") or 0) < 20) {
+        print("flight: the engine stopped");
+        flight.state = "wait";
+    } elsif (flight.state == "warm" and getprop("/sim/time/elapsed-sec") - flight.t_run > 15) {
+        # full throttle at once stops the engine that has just started: the control loop moves it in over ten seconds
+        flight.hdg = getprop("/orientation/heading-deg");
+        setprop("/controls/gear/brake-parking", 0);
+        setprop("/sim/current-view/view-number", 2);
+        flight.t_roll = getprop("/sim/time/elapsed-sec");
+        flight.state = "roll";
+        print(sprintf("flight: brakes off, throttle in, heading to hold %d", flight.hdg));
+    }
+});
+flight_log.simulatedTime = 0; flight_log.start();
+var flight_say = func(key, text) {
+    if (contains(flight.said, key)) { return; }
+    flight.said[key] = 1;
+    print(sprintf("flight: %s, %.0f s after the brakes went off", text, getprop("/sim/time/elapsed-sec") - flight.t_roll));
+};
+var flight_fly = maketimer(0, func {
+    if (flight.state != "roll" and flight.state != "air") { return; }
+    var e = flight_err(flight.hdg, getprop("/orientation/heading-deg"));
+    var kt = getprop("/velocities/airspeed-kt"); var agl = getprop("/position/altitude-agl-ft");
+    var roll = getprop("/orientation/roll-deg"); var pitch = getprop("/orientation/pitch-deg");
+    setprop("/controls/engines/engine[0]/throttle", flight_clamp(0.2 + (getprop("/sim/time/elapsed-sec") - flight.t_roll) * 0.08, 0.2, 1.0));
+    if (flight.state == "roll") {
+        setprop("/controls/flight/rudder", flight_clamp(e * 0.05, -0.5, 0.5));
+        setprop("/controls/flight/aileron", flight_clamp(-roll * 0.03, -0.3, 0.3));
+        if (agl > 30) { flight.state = "air"; flight_say("air", "30 ft above the ground"); }
+    } else {
+        setprop("/controls/flight/rudder", 0);
+        setprop("/controls/flight/aileron", flight_clamp((flight_clamp(e, -15, 15) - roll) * 0.03, -0.4, 0.4));
+        if (agl > 300) { flight_say("300", "300 ft above the ground"); setprop("/sim/current-view/view-number", 0); }
+        if (agl > 1000) { flight_say("1000", "1000 ft above the ground"); }
+    }
+    setprop("/controls/flight/elevator", kt < 50 ? 0 : flight_clamp(-(8 - pitch) * 0.04, -0.5, 0.2));
+});
+flight_fly.start();
+      ]]></script>
+    </flight>
+  </nasal>
+</PropertyList>

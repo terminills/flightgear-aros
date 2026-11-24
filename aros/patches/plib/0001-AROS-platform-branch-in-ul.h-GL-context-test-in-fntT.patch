@@ -1,0 +1,95 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Sun, 22 Nov 2026 17:53:02 -0600
+Subject: [PATCH] AROS: platform branch in ul.h, GL context test in fntTXF
+
+ul.h gets UL_AROS (unistd.h for sleep(), usleep() and getcwd(); no
+window system define, so PUI takes its "no native window" paths) and a
+ulDynamicLibrary that loads nothing, AROS having no dlopen(). fntTXF
+asks glAGetCurrentContext() instead of GLX.
+
+Compiles (fnt, pu, puAux, sg, ul) with the pc-x86_64 cross toolchain
+(GCC 15.2.0). Not run on AROS yet.
+---
+ src/fnt/fntTXF.cxx |  4 ++++
+ src/util/ul.h      | 31 +++++++++++++++++++++++++++++++
+ 2 files changed, 35 insertions(+)
+
+diff --git a/src/fnt/fntTXF.cxx b/src/fnt/fntTXF.cxx
+index e664c90..fb4a547 100644
+--- a/src/fnt/fntTXF.cxx
++++ b/src/fnt/fntTXF.cxx
+@@ -30,6 +30,8 @@
+ #  include <OpenGL/CGLCurrent.h>
+ #elif defined(UL_WIN32)
+    /* Nothing */
++#elif defined(UL_AROS)
++#  include <GL/gla.h>
+ #else
+ #  include <GL/glx.h>
+ #endif
+@@ -44,6 +46,8 @@ static bool glIsValidContext ( void )
+   return ( aglGetCurrentContext () != NULL ) ;
+ #elif defined(UL_MAC_OSX)
+   return ( CGLGetCurrentContext () != NULL ) ;
++#elif defined(UL_AROS)
++  return ( glAGetCurrentContext () != NULL ) ;
+ #else
+   return ( glXGetCurrentContext () != NULL ) ;
+ #endif
+diff --git a/src/util/ul.h b/src/util/ul.h
+index f01ba01..d00f7d3 100644
+--- a/src/util/ul.h
++++ b/src/util/ul.h
+@@ -92,6 +92,10 @@
+ 
+ #define UL_HPUX      1
+ 
++#elif defined(__AROS__)
++
++#define UL_AROS      1
++
+ #elif (defined(__unix__) || defined(unix)) && !defined(USG)
+ 
+ #define UL_BSD       1
+@@ -144,6 +148,10 @@
+ #define  UL_GLX     1
+ #endif
+ 
++#ifdef UL_AROS
++#include <unistd.h>
++#endif
++
+ #include <assert.h>
+ #include <limits.h>
+ #include <math.h>
+@@ -692,6 +700,29 @@ public:
+   }
+ } ;
+ 
++#elif defined (UL_AROS)
++
++/*
++  AROS: no dynamic loading of this kind
++*/
++
++class ulDynamicLibrary
++{
++public:
++
++  ulDynamicLibrary ( const char *libname )
++  {
++    ulSetError ( UL_WARNING, "ulDynamicLibrary: cannot load \"%s\" on AROS", libname ) ;
++  }
++
++  void *getFuncAddress ( const char * )
++  {
++    return NULL ;
++  }
++
++  ~ulDynamicLibrary () {}
++} ;
++
+ #  else
+ 
+ /*

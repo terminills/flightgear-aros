@@ -1,0 +1,9 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+; the release as a user has it: the archive's drawer on FG:, the network running, nothing set
+Execute FGTEST:net-up rtl8139.device
+CD FG:FlightGear
+Echo "starting FGUnpack" >DEBUG:
+FGUnpack >DEBUG: *<>
+Echo "FGUnpack rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

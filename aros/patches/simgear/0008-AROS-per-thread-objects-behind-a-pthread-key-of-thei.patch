@@ -1,0 +1,100 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Mon, 23 Nov 2026 23:18:28 -0600
+Subject: [PATCH 8/8] AROS: per-thread objects behind a pthread key of their
+ own
+
+A thread_local object with a destructor is destroyed on AROS after its
+storage has been freed: thread_local is GCC's emulated TLS there, whose
+storage is released by one pthread key destructor, libstdc++ runs the
+thread_local destructors from a key made later, and the pthread library
+runs key destructors lowest key first.
+
+SGThreadObject<T> keeps one T per thread behind its own key and deletes
+it from that key's destructor. Used for thread_gzPath on AROS.
+---
+ simgear/io/lowlevel.cxx            |  7 ++++++
+ simgear/threads/CMakeLists.txt     |  3 ++-
+ simgear/threads/SGThreadObject.hxx | 40 ++++++++++++++++++++++++++++++
+ 3 files changed, 49 insertions(+), 1 deletion(-)
+ create mode 100644 simgear/threads/SGThreadObject.hxx
+
+diff --git a/simgear/io/lowlevel.cxx b/simgear/io/lowlevel.cxx
+index da83505..7880109 100644
+--- a/simgear/io/lowlevel.cxx
++++ b/simgear/io/lowlevel.cxx
+@@ -34,7 +34,14 @@
+ 
+ #include "lowlevel.hxx"
+ 
++#if defined(__AROS__)
++#include <simgear/threads/SGThreadObject.hxx>
++
++static SGThreadObject<SGPath> threadGzPath;
++#define thread_gzPath threadGzPath.get()
++#else
+ thread_local SGPath thread_gzPath;
++#endif
+ 
+ void setThreadLocalSimgearReadPath(const SGPath& path)
+ {
+diff --git a/simgear/threads/CMakeLists.txt b/simgear/threads/CMakeLists.txt
+index 5258be8..725e75d 100644
+--- a/simgear/threads/CMakeLists.txt
++++ b/simgear/threads/CMakeLists.txt
+@@ -3,7 +3,8 @@ include (SimGearComponent)
+ set(HEADERS 
+     SGGuard.hxx
+     SGQueue.hxx
+-    SGThread.hxx)
++    SGThread.hxx
++    SGThreadObject.hxx)
+ 
+ set(SOURCES SGThread.cxx)
+ simgear_component(threads threads "${SOURCES}" "${HEADERS}")
+diff --git a/simgear/threads/SGThreadObject.hxx b/simgear/threads/SGThreadObject.hxx
+new file mode 100644
+index 0000000..d612afa
+--- /dev/null
++++ b/simgear/threads/SGThreadObject.hxx
+@@ -0,0 +1,40 @@
++// SGThreadObject.hxx - one object per thread, behind a pthread key of its own
++//
++// SPDX-License-Identifier: LGPL-2.0-or-later
++
++#ifndef SG_THREAD_OBJECT_HXX
++#define SG_THREAD_OBJECT_HXX
++
++#include <pthread.h>
++
++/**
++ * One T per thread, made at the thread's first get() and deleted when the thread ends.
++ *
++ * For where a thread_local with a destructor is not safe: with GCC's emulated TLS and
++ * libstdc++'s own list of thread_local destructors, both hang on pthread keys, and a
++ * pthread library that runs key destructors in the order the keys were made frees the
++ * storage before the objects in it are destroyed.
++ */
++template <class T>
++class SGThreadObject
++{
++public:
++    SGThreadObject() { pthread_key_create(&_key, &destroy); }
++
++    T& get()
++    {
++        T* object = static_cast<T*>(pthread_getspecific(_key));
++        if (!object) {
++            object = new T;
++            pthread_setspecific(_key, object);
++        }
++        return *object;
++    }
++
++private:
++    static void destroy(void* object) { delete static_cast<T*>(object); }
++
++    pthread_key_t _key;
++};
++
++#endif // SG_THREAD_OBJECT_HXX

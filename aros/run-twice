@@ -1,0 +1,24 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+Echo "before the network stack is started" >DEBUG:
+Run >NIL: Execute FGTEST:twice-pair plain0
+Wait 3
+Run >NIL: Execute FGTEST:twice-pair thread0 thread
+Wait 3
+Run >NIL: Execute FGTEST:twice-pair pw0 pw
+Wait 3
+Execute FGTEST:net-up rtl8139.device
+Echo "with the network stack running" >DEBUG:
+Run >NIL: Execute FGTEST:twice-pair plain
+Wait 3
+Run >NIL: Execute FGTEST:twice-pair thread thread
+Wait 3
+Run >NIL: Execute FGTEST:twice-pair pw pw
+Wait 3
+Run >NIL: Execute FGTEST:twice-pair tpw tpw
+Wait 3
+Run >NIL: Execute FGTEST:twice-pair sock sock
+Wait 3
+Run >NIL: Execute FGTEST:twice-pair tsock tsock
+Wait 3
+Echo "cp done" >DEBUG:

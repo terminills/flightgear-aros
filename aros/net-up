@@ -1,0 +1,15 @@
+.key DEV/A
+.bra {
+.ket }
+; net-up DEVICE: starts AROSTCP on the VM's network card with DHCP (the live ISO starts no network), once
+If NOT EXISTS RAM:db
+  MakeDir RAM:db
+  Copy SYS:System/Network/AROSTCP/db RAM:db ALL QUIET
+  Echo "eth0 DEV=DEVS:Networks/{DEV} UNIT=0 NOTRACKING IP=DHCP UP" >RAM:db/interfaces
+  SetEnv AROSTCP/Config RAM:db
+  Run >NIL: SYS:System/Network/AROSTCP/C/AROSTCP
+  WaitForPort AROSTCP
+  Echo "net-up: {DEV}, AROSTCP port rc $RC" >DEBUG:
+  Wait 12
+EndIf
+ifconfig eth0 >DEBUG:

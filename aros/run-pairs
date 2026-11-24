@@ -1,0 +1,15 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+Run >NIL: Execute FGTEST:pair-a
+Wait 3
+Run >NIL: Execute FGTEST:pair-b
+Wait 3
+Run >NIL: Execute FGTEST:pair-c
+Wait 3
+Run >NIL: Execute FGTEST:pair-d
+Wait 3
+Run >NIL: Execute FGTEST:pair-e
+Wait 3
+Run >NIL: Execute FGTEST:pair-f
+Wait 3
+Echo "cp done" >DEBUG:

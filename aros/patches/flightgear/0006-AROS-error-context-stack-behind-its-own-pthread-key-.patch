@@ -1,0 +1,89 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Mon, 23 Nov 2026 23:18:28 -0600
+Subject: [PATCH 6/7] AROS: error context stack behind its own pthread key;
+ terminate handler names the exception
+
+thread_errorContextStack was a thread_local map: its destructor ran on
+freed storage when a thread ended (page fault in ~map from libstdc++'s
+thread-exit list). On AROS it is an SGThreadObject.
+
+The terminate handler prints what the uncaught exception is: message and
+origin of an sg_exception, what() of a std::exception, a string, or the
+type's name.
+---
+ src/Main/ErrorReporter.cxx |  9 +++++++++
+ src/Main/bootstrap.cxx     | 25 +++++++++++++++++++++++++
+ 2 files changed, 34 insertions(+)
+
+diff --git a/src/Main/ErrorReporter.cxx b/src/Main/ErrorReporter.cxx
+index 3b56cba..1adafaa 100644
+--- a/src/Main/ErrorReporter.cxx
++++ b/src/Main/ErrorReporter.cxx
+@@ -39,6 +39,10 @@
+ #include <Model/validateSharedModels.hxx>
+ #include <Scripting/NasalClipboard.hxx> // clipboard access
+ 
++#if defined(__AROS__)
++#include <simgear/threads/SGThreadObject.hxx>
++#endif
++
+ using simgear::LoadFailure;
+ using std::string;
+ 
+@@ -54,7 +58,12 @@ using PerThreadErrorContextStack = std::map<std::string, string_list>;
+ 
+ // context storage. This is per-thread so parallel osgDB threads don't
+ // confuse each other
++#if defined(__AROS__)
++static SGThreadObject<PerThreadErrorContextStack> threadErrorContextStack;
++#define thread_errorContextStack threadErrorContextStack.get()
++#else
+ static thread_local PerThreadErrorContextStack thread_errorContextStack;
++#endif
+ /**
+  Define the aggregation points we use for errors, to direct the user towards the likely
+  source of problems.
+diff --git a/src/Main/bootstrap.cxx b/src/Main/bootstrap.cxx
+index a8670bb..f640686 100755
+--- a/src/Main/bootstrap.cxx
++++ b/src/Main/bootstrap.cxx
+@@ -46,6 +46,9 @@
+ 
+ 
+ #include <iostream>
++#include <exception>
++#include <typeinfo>
++#include <cxxabi.h>
+ #include <cerrno>
+ #include <csignal>
+ #include <cstdlib>
+@@ -247,6 +250,28 @@ void segfault_handler(int signo) {
+ {
+     cerr << "Running FlightGear's terminate handler. The program is going to "
+       "exit due to a fatal error condition, sorry." << std::endl;
++
++    // an exception nobody caught: say which
++    if (std::exception_ptr ep = std::current_exception()) {
++        try {
++            std::rethrow_exception(ep);
++        } catch (const sg_exception& e) {
++            cerr << "Uncaught exception: " << e.getFormattedMessage()
++                 << " (origin: " << e.getOrigin() << ")" << std::endl;
++        } catch (const std::exception& e) {
++            cerr << "Uncaught exception: " << e.what() << std::endl;
++        } catch (const std::string& s) {
++            cerr << "Uncaught exception: " << s << std::endl;
++        } catch (const char* s) {
++            cerr << "Uncaught exception: " << s << std::endl;
++        } catch (...) {
++            const std::type_info* t = abi::__cxa_current_exception_type();
++            cerr << "Uncaught exception of type " << (t ? t->name() : "(unknown)") << std::endl;
++        }
++    } else {
++        cerr << "No exception is active." << std::endl;
++    }
++
+     std::abort();
+ }
+ 

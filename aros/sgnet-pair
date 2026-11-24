@@ -1,0 +1,9 @@
+.key WHAT/F
+.bra {
+.ket }
+; sgnet-pair WORDS: one run of tests/sgnet that does WORDS, then tests/twice, both from this Shell
+Failat 2147483647
+Stack 1000000
+Echo "pair: sgnet {WHAT}" >DEBUG:
+FGTEST:tests/sgnet {WHAT} >DEBUG:
+FGTEST:tests/twice after

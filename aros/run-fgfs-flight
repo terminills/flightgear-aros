@@ -1,0 +1,20 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+Assign LIBS: FG:libs ADD
+If EXISTS FGTEST:drivers
+  Assign LIBS: FGTEST:drivers ADD
+  SetEnv SYS/Gallium.default llvmpipe
+  Echo "gallium default llvmpipe" >DEBUG:
+EndIf
+If EXISTS FGTEST:devs
+  Avail FLUSH >NIL:
+  Assign DEVS: FGTEST:devs
+  Assign DEVS: SYS:Devs ADD
+  Echo "ahi.device of the test CD in front" >DEBUG:
+EndIf
+Stack 4000000
+CD FG:
+Echo "starting fgfs" >DEBUG:
+FG:fgfs --disable-terrasync --disable-real-weather-fetch --disable-ai-traffic --geometry=800x600 --graphics-preset=minimal-quality --start-date-lat=2026:06:21:12:00:00 --log-level=info --log-class=nasal,general,flight --config=/FGTEST/flight.xml >DEBUG: *<>
+Echo "fgfs rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

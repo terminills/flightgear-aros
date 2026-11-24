@@ -1,0 +1,15 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+Copy FGTEST:fgfs RAM:fgfs QUIET
+Echo "copied rc $RC" >DEBUG:
+Assign LIBS: FGTEST:libs ADD
+Stack 4000000
+CD RAM:
+Echo "starting fgfs --version" >DEBUG:
+fgfs --fg-root=/FGTEST/fgdata --version >DEBUG:
+Echo "fgfs rc $RC" >DEBUG:
+If EXISTS RAM:.fgfs/fgfs.log
+  Echo "fgfs.log:" >DEBUG:
+  Type RAM:.fgfs/fgfs.log >DEBUG:
+EndIf
+Echo "cp done" >DEBUG:

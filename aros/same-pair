@@ -1,0 +1,10 @@
+.key PROG/A,STACK/A
+.bra {
+.ket }
+; same-pair PROG STACK: the same test program twice from this Shell, with the given stack size
+Failat 2147483647
+Stack {STACK}
+Echo "pair: {PROG} twice, stack {STACK}" >DEBUG:
+FGTEST:tests/{PROG} first
+FGTEST:tests/{PROG} second
+FGTEST:tests/{PROG} third

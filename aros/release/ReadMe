@@ -1,0 +1,203 @@
+FlightGear 2024.1.7 for AROS - release candidate 1
+==================================================
+
+FlightGear is a free flight simulator (https://www.flightgear.org). This is a build of it for AROS,
+pc-x86_64 (ABIv1): a release candidate, for people who want to try it and say what breaks:
+
+    https://github.com/terminills/flightgear-aros/issues
+
+Read "What has been tested" at the end before you expect much: so far it has only run in a virtual
+machine with software rendering, where it is a slide show.
+
+
+What you need
+-------------
+
+AROS    A pc-x86_64 nightly build that contains commit 21200a1a87 of 2026-11-23, which means the
+        nightly of 2026-11-24 or a later one. The programs were built against that commit with
+        GCC 15.2.0 and have not been run on anything older.
+
+Display An NVidia or AMD graphics card with AROS's own GL driver for it is what we recommend.
+        FlightGear needs OpenGL, and without such a card AROS draws it in software on the processor
+        (see "Without a graphics card driver"), which is not usable for flying.
+        We have to be plain about this: the recommendation comes from the software figures below,
+        not from a test. Nobody has run this build on a hardware GL driver yet. If you do, tell us.
+
+Memory  Tested with 4 GB.
+
+Disk    3.2 GB: 2.8 GB for FlightGear's data, 190 MB for the navigation cache built at the first
+        start, the rest for this drawer.
+
+Network For fetching the data once (1.9 GB download). FlightGear itself runs without a network.
+
+
+Installing
+----------
+
+1. Unpack the archive where the 3.2 GB are free. You get the drawer "FlightGear". The .lha and the
+   .zip hold the same files; here "lha x" and "UnZip" from AROS's contrib unpacked them.
+
+2. Get FlightGear's data. It is not in this archive: FGUnpack downloads the official data archive of
+   FlightGear 2024.1.7 from download.flightgear.org and unpacks it as it arrives into the drawer
+   "fgdata" beside the programs (24102 files, 2.78 GB). With the network running, in a Shell:
+
+       CD <where you unpacked>/FlightGear
+       FGUnpack
+
+   Here that took 4 minutes. If you already have FlightGear-2024.1.7-data.txz, give its name
+   instead and nothing is downloaded (2 minutes here):
+
+       FGUnpack Work:Downloads/FlightGear-2024.1.7-data.txz
+
+3. Start it from the same Shell:
+
+       fgfs
+
+   The first start builds the navigation cache and shows the splash screen while it does. That is
+   slow on software rendering (see below). Later starts use the cache.
+
+   If fgfs ends at once with "Required data files not found", step 2 has not been done.
+
+FlightGear keeps its settings, the cache and the scenery it downloads in the drawer ".fgfs" inside
+the FlightGear drawer.
+
+
+Options
+-------
+
+fgfs reads the file ".fgfsrc" in its drawer before the command line. It comes with three lines:
+
+    --graphics-preset=minimal-quality
+    --disable-sound
+    --geometry=800x600
+
+Every option of FlightGear's command line can go there (fgfs --help --verbose lists most of them).
+The first line keeps the picture simple; with a graphics card driver you will want to remove it or
+pick another preset. The second is explained under "Sound". The third is the size of the window:
+the default of 1024x768 does not fit on a 1024x768 screen with the window's borders.
+
+
+Sound
+-----
+
+Sound is switched off in this release candidate, with --disable-sound in ".fgfsrc".
+
+With sound on and the ahi.device of the nightly, FlightGear did not survive in our tests: about
+20 seconds after sound started, files it was reading at that moment came out damaged (a texture was
+refused with a checksum error although the file was intact), and in 2 of 2 runs that went on the
+program stopped with a "Program failed" requester about a minute after sound started. With sound
+off the same disk and the same files gave no error.
+
+To try it anyway, take the line --disable-sound out of ".fgfsrc". Sound goes through OpenAL
+(Libs/openal.library in this drawer, found there by fgfs) and AHI.
+
+
+Without a graphics card driver
+------------------------------
+
+AROS then draws OpenGL on the processor. It has two drivers for that:
+
+softpipe  is in every nightly and is what you get if you do nothing. Measured in a virtual machine
+          (QEMU/KVM, one processor core, the Cessna 172P at Keflavik, simplest graphics preset,
+          800x600): a frame every 2 seconds in the cockpit, every 1.5 seconds in the outside
+          view. The splash screen stays for 5 minutes on every start and for 13 minutes on the
+          first one, which builds the navigation cache.
+
+llvmpipe  is about seven times as fast and is not in the nightly. A copy built from the same AROS
+          sources is in this drawer as Drivers/llvmpipe.hidd. To use it until AROS is restarted:
+
+              CD <where you unpacked>/FlightGear
+              Execute UseLLVMpipe
+              fgfs
+
+          Do this before any other program that uses OpenGL has run, or it may have no effect.
+          Measured in the same virtual machine at the same size: 3 frames a second in the cockpit,
+          5 to 6 in the outside view; the splash screen is gone after a minute.
+
+Both are a way to see that it works. Neither is a way to fly.
+
+
+Joystick
+--------
+
+FlightGear reads game controllers through AROS's controller subsystem (USB HID). FlightGear's own
+joystick files apply, so a stick it knows by name is set up by itself. This has been tested with a
+simulated stick only; no real one has been plugged in.
+
+
+Scenery
+-------
+
+The data has the scenery around the default airport (Keflavik, BIKF). For the rest of the world
+FlightGear can fetch scenery while you fly: start "fgfs --enable-terrasync" with the network
+running. In our test it found the scenery server, fetched the models, the airports and the terrain
+around Keflavik (about 1 GB on the disk, into ".fgfs/TerraSync") and showed the cockpit 12 minutes
+after the start; most of that time went into unpacking the airports, which happens once.
+
+
+Known problems
+--------------
+
+- Sound: see above.
+- Software rendering is too slow to fly: see above.
+- One fgfs per start of AROS has been the rule in our tests; a second start in the same session
+  has not been tested.
+- Only one processor core has been tested.
+- Nobody has flown by hand. A script has: it starts the engine and takes the Cessna off the runway
+  and up to 1000 ft.
+
+
+What has been tested
+--------------------
+
+All of it in QEMU/KVM with one processor core and 4 GB, on the nightly-equivalent build of AROS
+commit 21200a1a87, with the files of this archive:
+
+- Both archives unpacked on AROS with lha and UnZip from AROS's contrib: every file as packed.
+- FGUnpack, with the download and from a file: 24102 files each time, checksum of the archive as
+  expected.
+- A first start and a second start on softpipe, as the drawer comes (sound off, 800x600): cockpit
+  and outside view drawn, fgfs left through its own exit.
+- A start on llvmpipe after "Execute UseLLVMpipe": the same.
+- A take-off flown by a script on llvmpipe: engine start, off the runway, 1000 ft above the ground
+  86 seconds after the brakes were released.
+- "fgfs --enable-terrasync" on llvmpipe with the network running: scenery fetched as described
+  under "Scenery".
+- A simulated joystick on llvmpipe: found by name, the controls followed it, also after it was
+  taken away and put back.
+- With sound on: the failures described under "Sound".
+
+Not tested: real hardware of any kind, a graphics card's GL driver, a real joystick, more than one
+processor core, any aircraft but the Cessna 172P, any airport but Keflavik.
+
+
+What is in the drawer
+---------------------
+
+fgfs                 FlightGear 2024.1.7
+FGUnpack             fetches and unpacks FlightGear's data
+.fgfsrc              options for fgfs
+Libs/openal.library  OpenAL (openal-soft 1.19.1 from AROS contrib); the nightly does not have it
+Drivers/llvmpipe.hidd, UseLLVMpipe
+                     the optional software GL driver and the script that selects it
+Licences/            the licences of everything linked into the programs
+ReadMe               this text
+
+fgfs and FGUnpack carry their libraries inside (OpenSceneGraph, SimGear, PLIB, curl, OpenSSL, zlib,
+FreeType, liblzma and others), so nothing else has to be installed.
+
+
+Licence and source
+------------------
+
+FlightGear is free software under the GNU General Public License, version 2 or later
+(Licences/FlightGear-COPYING). The AROS port's own files are under the same licence. The source of
+the port - the patches to FlightGear, SimGear, OpenSceneGraph and PLIB, the AROS support library and
+the build scripts - is at
+
+    https://github.com/terminills/flightgear-aros
+
+and the release there has a source archive that belongs to this build.
+
+FlightGear is the work of the FlightGear project. This port is not made or supported by them:
+problems with it belong on the address at the top, not in FlightGear's bug tracker.

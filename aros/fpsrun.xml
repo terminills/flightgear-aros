@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<!-- fgfs -\-config=/FGTEST/fpsrun.xml: a frame-rate measurement that ends by itself. A line with the number of
+     frames drawn and the clock every ten seconds of the simulator's timer (every ten frames below one frame a
+     second). While the splash screen is up the lines say "fpsrun waiting"; after it six lines in the cockpit
+     view, six in the first outside view, then fgfs exits. -->
+<PropertyList>
+  <nasal>
+    <fpsrun>
+      <script><![CDATA[
+var fpsrun_lines = 0;
+var fpsrun_timer = maketimer(10, func {
+    var frame = getprop("/sim/frame-number") or 0;
+    if (!getprop("/sim/sceneryloaded") or (getprop("/sim/startup/splash-alpha") or 0) > 0) {
+        print(sprintf("fpsrun waiting: frame %d at %.2f s, splash screen", frame, systime()));
+        return;
+    }
+    fpsrun_lines += 1;
+    print(sprintf("fpsrun %d: frame %d at %.2f s, %s", fpsrun_lines, frame,
+                  systime(), getprop("/sim/current-view/name") or "-"));
+    if (fpsrun_lines == 7)
+        setprop("/sim/current-view/view-number", 1);
+    if (fpsrun_lines == 13)
+        fgcommand("exit");
+});
+fpsrun_timer.simulatedTime = 0;
+fpsrun_timer.start();
+      ]]></script>
+    </fpsrun>
+  </nasal>
+</PropertyList>

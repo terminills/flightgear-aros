@@ -1,0 +1,9 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+Echo "xzcheck: the port's liblzma" >DEBUG:
+FGTEST:tests/xzcheck >DEBUG:
+Echo "xzcheck rc $RC" >DEBUG:
+Echo "xzchecksys: lzma.library" >DEBUG:
+FGTEST:tests/xzchecksys >DEBUG:
+Echo "xzchecksys rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

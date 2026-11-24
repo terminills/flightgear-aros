@@ -1,0 +1,15 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+Copy FGTEST:tests RAM:tests ALL QUIET
+Echo "copied rc $RC" >DEBUG:
+If EXISTS FGTEST:drivers
+  Assign LIBS: FGTEST:drivers ADD
+  SetEnv SYS/Gallium.default llvmpipe
+  Echo "gallium default llvmpipe" >DEBUG:
+EndIf
+Stack 4000000
+CD RAM:tests
+Echo "starting osgwin" >DEBUG:
+osgwin >DEBUG:
+Echo "osgwin rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

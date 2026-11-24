@@ -1,0 +1,310 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: terminills <tdeters@gmail.com>
+Date: Sun, 22 Nov 2026 18:12:45 -0600
+Subject: [PATCH 1/7] AROS: build FlightGear against AROS's C library and
+ bsdsocket.library
+
+- sqlite3 (bundled, thread-safe): adapted the way AROS's own sqlite port
+  is: no write-ahead log (no shared memory files), the "unix-none" VFS
+  first, "Volume:" paths, arc4random_buf() for randomness; exec/types.h
+  is read before sqlite defines its own GLOBAL.
+- hts_engine: fpos_t is an integer type.
+- fgrcc: a cross build takes the resource compiler from FGRCC_EXECUTABLE
+  (built for the build machine) instead of building one it cannot run.
+- bootstrap: no execinfo.h backtrace handler.
+- mongoose: no dlfcn.h, no CGI (no fork()); sockets are closed and set
+  non-blocking through the port's support library (libfgaros.a), as a
+  socket is not a C library file descriptor.
+- JSBSim FGfdmSocket: the same for its sockets.
+- fg_os_osgviewer: a static build registers the plugins FlightGear's
+  OpenSceneGraph is built with (dds, rgb, jpeg, png, freetype, 3ds, ac,
+  osg, txf) and the serializers.
+
+Compiles and links (fgfs) with the pc-x86_64 cross toolchain
+(GCC 15.2.0). Not run on AROS yet.
+---
+ 3rdparty/hts_engine_API/lib/HTS_misc.c      |  2 +-
+ 3rdparty/mongoose/mongoose.c                | 12 +++++++
+ 3rdparty/sqlite3/sqlite3.c                  | 40 +++++++++++++++++++--
+ src/EmbeddedResources/CMakeLists.txt        | 10 ++++--
+ src/FDM/JSBSim/input_output/FGfdmSocket.cpp |  8 +++++
+ src/Main/bootstrap.cxx                      |  4 +--
+ src/Viewer/fg_os_osgviewer.cxx              | 20 +++++++++++
+ 7 files changed, 89 insertions(+), 7 deletions(-)
+
+diff --git a/3rdparty/hts_engine_API/lib/HTS_misc.c b/3rdparty/hts_engine_API/lib/HTS_misc.c
+index d4ff2d4..85ac03e 100755
+--- a/3rdparty/hts_engine_API/lib/HTS_misc.c
++++ b/3rdparty/hts_engine_API/lib/HTS_misc.c
+@@ -282,7 +282,7 @@ size_t HTS_ftell(HTS_File * fp)
+    } else if (fp->type == HTS_FILE) {
+       fpos_t pos;
+       fgetpos((FILE *) fp->pointer, &pos);
+-#if defined(_WIN32) || defined(__CYGWIN__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__ANDROID__) || defined(__OpenBSD__)
++#if defined(_WIN32) || defined(__CYGWIN__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__ANDROID__) || defined(__OpenBSD__) || defined(__AROS__)
+       return (size_t) pos;
+ #else
+       return (size_t) pos.__pos;
+diff --git a/3rdparty/mongoose/mongoose.c b/3rdparty/mongoose/mongoose.c
+index 84c2d60..ffdfe20 100644
+--- a/3rdparty/mongoose/mongoose.c
++++ b/3rdparty/mongoose/mongoose.c
+@@ -123,7 +123,13 @@ typedef struct _stati64 ns_stat_t;
+ #include <netinet/in.h>
+ #include <sys/socket.h>
+ #include <sys/select.h>
++#ifdef __AROS__
++/* sockets are not file descriptors of the C library, and there is no fork() for CGI */
++#define closesocket(x) fgaros_closesocket(x)
++#define MONGOOSE_NO_CGI
++#else
+ #define closesocket(x) close(x)
++#endif
+ #define __cdecl
+ #define INVALID_SOCKET (-1)
+ #define to64(x) strtoll(x, NULL, 10)
+@@ -530,6 +536,8 @@ static void ns_close_conn(struct ns_connection *conn) {
+ void ns_set_close_on_exec(sock_t sock) {
+ #ifdef _WIN32
+   (void) SetHandleInformation((HANDLE) sock, HANDLE_FLAG_INHERIT, 0);
++#elif defined(__AROS__)
++  (void) sock;
+ #else
+   fcntl(sock, F_SETFD, FD_CLOEXEC);
+ #endif
+@@ -539,6 +547,8 @@ static void ns_set_non_blocking_mode(sock_t sock) {
+ #ifdef _WIN32
+   unsigned long on = 1;
+   ioctlsocket(sock, FIONBIO, &on);
++#elif defined(__AROS__)
++  fgaros_socket_nonblocking(sock, 1);
+ #else
+   int flags = fcntl(sock, F_GETFL, 0);
+   fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+@@ -1270,7 +1280,9 @@ typedef HANDLE process_id_t;
+ #else                    ////////////// UNIX specific defines and includes
+ 
+ #include <dirent.h>
++#ifndef __AROS__
+ #include <dlfcn.h>
++#endif
+ #include <inttypes.h>
+ #include <pwd.h>
+ #define O_BINARY 0
+diff --git a/3rdparty/sqlite3/sqlite3.c b/3rdparty/sqlite3/sqlite3.c
+index 37b534a..528c780 100644
+--- a/3rdparty/sqlite3/sqlite3.c
++++ b/3rdparty/sqlite3/sqlite3.c
+@@ -1,3 +1,11 @@
++#ifdef __AROS__
++/* no shared-memory files for a write-ahead log; exec/types.h, which pthread.h
++** brings in, has a GLOBAL of its own and must be read before ours is defined */
++#define SQLITE_OMIT_WAL 1
++#include <exec/types.h>
++#include <pthread.h>
++#undef GLOBAL
++#endif
+ /******************************************************************************
+ ** This file is an amalgamation of many separate C source files from SQLite
+ ** version 3.49.1.  By combining all the individual C code files into this
+@@ -39611,7 +39619,7 @@ static struct vxworksFileId *vxworksFindFileId(const char *zAbsoluteName){
+   struct vxworksFileId *pCandidate;   /* For looping over existing file IDs */
+   int n;                              /* Length of zAbsoluteName string */
+ 
+-  assert( zAbsoluteName[0]=='/' );
++  assert( zAbsoluteName[0]=='/' || strchr(zAbsoluteName, ':') );
+   n = (int)strlen(zAbsoluteName);
+   pNew = sqlite3_malloc64( sizeof(*pNew) + (n+1) );
+   if( pNew==0 ) return 0;
+@@ -41908,6 +41916,17 @@ static int seekAndRead(unixFile *id, sqlite3_int64 offset, void *pBuf, int cnt){
+     got = osPread64(id->h, pBuf, cnt, offset);
+     SimulateIOError( got = -1 );
+ #else
++#ifdef __AROS__
++    /* lseek() past the end makes the file longer on AROS; reading the header
++    ** of a new, empty database must not do that */
++    if( offset==24 && cnt==16 ){
++      newOffset = lseek(id->h, 0, SEEK_END);
++      if( newOffset<offset ){
++        got = 0;
++        break;
++      }
++    }
++#endif
+     newOffset = lseek(id->h, offset, SEEK_SET);
+     SimulateIOError( newOffset = -1 );
+     if( newOffset<0 ){
+@@ -42308,7 +42327,11 @@ static int openDirectory(const char *zFilename, int *pFd){
+   char zDirname[MAX_PATHNAME+1];
+ 
+   sqlite3_snprintf(MAX_PATHNAME, zDirname, "%s", zFilename);
++#ifdef __AROS__
++  for(ii=(int)strlen(zDirname); ii>0 && zDirname[ii]!='/' && zDirname[ii-1]!=':'; ii--);
++#else
+   for(ii=(int)strlen(zDirname); ii>0 && zDirname[ii]!='/'; ii--);
++#endif
+   if( ii>0 ){
+     zDirname[ii] = '\0';
+   }else{
+@@ -45226,6 +45249,9 @@ static void appendOnePathElement(
+     return;
+   }
+   pPath->zOut[pPath->nUsed++] = '/';
++#ifdef __AROS__
++  if( pPath->nUsed==1 ) pPath->nUsed--;   /* "Volume:dir", not "/Volume:dir" */
++#endif
+   memcpy(&pPath->zOut[pPath->nUsed], zName, nName);
+   pPath->nUsed += nName;
+ #if defined(HAVE_READLINK) && defined(HAVE_LSTAT)
+@@ -45302,7 +45328,11 @@ static int unixFullPathname(
+   path.nSymlink = 0;
+   path.nOut = nOut;
+   path.zOut = zOut;
++#ifdef __AROS__
++  if( zPath[0]!='/' && strchr(zPath, ':')==NULL ){
++#else
+   if( zPath[0]!='/' ){
++#endif
+     char zPwd[SQLITE_MAX_PATHLEN+2];
+     if( osGetcwd(zPwd, sizeof(zPwd)-2)==0 ){
+       return unixLogError(SQLITE_CANTOPEN_BKPT, "getcwd", zPath);
+@@ -45399,7 +45429,9 @@ static int unixRandomness(sqlite3_vfs *NotUsed, int nBuf, char *zBuf){
+   */
+   memset(zBuf, 0, nBuf);
+   randomnessPid = osGetpid(0);
+-#if !defined(SQLITE_TEST) && !defined(SQLITE_OMIT_RANDOMNESS)
++#if defined(__AROS__)
++  arc4random_buf(zBuf, nBuf);   /* there is no /dev/urandom to open */
++#elif !defined(SQLITE_TEST) && !defined(SQLITE_OMIT_RANDOMNESS)
+   {
+     int fd, got;
+     fd = robust_open("/dev/urandom", O_RDONLY, 0);
+@@ -46783,6 +46815,10 @@ SQLITE_API int sqlite3_os_init(void){
+   ** array cannot be const.
+   */
+   static sqlite3_vfs aVfs[] = {
++#if defined(__AROS__)
++    /* the first entry is the default: no fcntl() record locks on AROS */
++    UNIXVFS("unix-none",     nolockIoFinder ),
++#endif
+ #if SQLITE_ENABLE_LOCKING_STYLE && defined(__APPLE__)
+     UNIXVFS("unix",          autolockIoFinder ),
+ #elif OS_VXWORKS
+diff --git a/src/EmbeddedResources/CMakeLists.txt b/src/EmbeddedResources/CMakeLists.txt
+index 6f53a5d..aab3f9f 100644
+--- a/src/EmbeddedResources/CMakeLists.txt
++++ b/src/EmbeddedResources/CMakeLists.txt
+@@ -1,5 +1,11 @@
+-add_executable(fgrcc fgrcc.cxx fgrcc.hxx)
+-target_link_libraries(fgrcc SimGearCore)
++# A cross build cannot run the fgrcc it builds: FGRCC_EXECUTABLE names one built for the build machine.
++if(CMAKE_CROSSCOMPILING AND FGRCC_EXECUTABLE)
++  add_executable(fgrcc IMPORTED GLOBAL)
++  set_target_properties(fgrcc PROPERTIES IMPORTED_LOCATION "${FGRCC_EXECUTABLE}")
++else()
++  add_executable(fgrcc fgrcc.cxx fgrcc.hxx)
++  target_link_libraries(fgrcc SimGearCore)
++endif()
+ 
+ # On Windows, make sure fgrcc can be run (it needs third-party libraries) in add_custom_target
+ if(MSVC)
+diff --git a/src/FDM/JSBSim/input_output/FGfdmSocket.cpp b/src/FDM/JSBSim/input_output/FGfdmSocket.cpp
+index 5034068..5ab6db7 100644
+--- a/src/FDM/JSBSim/input_output/FGfdmSocket.cpp
++++ b/src/FDM/JSBSim/input_output/FGfdmSocket.cpp
+@@ -178,6 +178,8 @@ FGfdmSocket::FGfdmSocket(int port, int protocol, int precision)
+ #ifdef _WIN32
+     u_long NonBlock = 1; // True
+     ioctlsocket(sckt, FIONBIO, &NonBlock);
++#elif defined(__AROS__)
++    fgaros_socket_nonblocking(sckt, 1);
+ #else
+     int flags = fcntl(sckt, F_GETFL, 0);
+     fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
+@@ -211,6 +213,8 @@ FGfdmSocket::FGfdmSocket(int port, int protocol, int precision)
+ #ifdef _WIN32
+           u_long NoBlock = 1;
+           ioctlsocket(sckt, FIONBIO, &NoBlock);
++#elif defined(__AROS__)
++          fgaros_socket_nonblocking(sckt, 1);
+ #else
+           int flags = fcntl(sckt, F_GETFL, 0);
+           fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
+@@ -255,6 +259,8 @@ string FGfdmSocket::Receive(void)
+ #ifdef _WIN32
+       u_long NoBlock = 1;
+       ioctlsocket(sckt_in, FIONBIO, &NoBlock);
++#elif defined(__AROS__)
++      fgaros_socket_nonblocking(sckt_in, 1);
+ #else
+       int flags = fcntl(sckt_in, F_GETFL, 0);
+       fcntl(sckt_in, F_SETFL, flags | O_NONBLOCK);
+@@ -317,6 +323,8 @@ void FGfdmSocket::Close(void)
+ {
+ #ifdef _WIN32
+   closesocket(sckt_in);
++#elif defined(__AROS__)
++  fgaros_closesocket(sckt_in);
+ #else
+   close(sckt_in);
+ #endif
+diff --git a/src/Main/bootstrap.cxx b/src/Main/bootstrap.cxx
+index 7fd39ff..ab20ae2 100755
+--- a/src/Main/bootstrap.cxx
++++ b/src/Main/bootstrap.cxx
+@@ -191,7 +191,7 @@ bool checkUniversalCRTVersion()
+ 
+ #endif
+ 
+-#if defined(__GNUC__)
++#if defined(__GNUC__) && !defined(__AROS__)
+ #include <execinfo.h>
+ #include <cxxabi.h>
+ void segfault_handler(int signo) {
+@@ -319,7 +319,7 @@ int main ( int argc, char **argv )
+ // custom segfault handler on Linux, in debug builds.
+ // NB On OpenBSD this seems to lose info about where the signal
+ // happened, so is disabled.
+-#if !defined(SG_WINDOWS) && !defined(NDEBUG) && !defined(__OpenBSD__)
++#if !defined(SG_WINDOWS) && !defined(NDEBUG) && !defined(__OpenBSD__) && !defined(__AROS__)
+     if (!flightgear::isSentryEnabled()) {
+         signal(SIGSEGV, segfault_handler);
+     }
+diff --git a/src/Viewer/fg_os_osgviewer.cxx b/src/Viewer/fg_os_osgviewer.cxx
+index f353d95..374754d 100755
+--- a/src/Viewer/fg_os_osgviewer.cxx
++++ b/src/Viewer/fg_os_osgviewer.cxx
+@@ -73,6 +73,25 @@
+ #ifdef OSG_LIBRARY_STATIC
+ #include <osgDB/Registry>
+ USE_GRAPHICSWINDOW();
++#ifdef __AROS__
++// the plugins FlightGear's OpenSceneGraph is built with
++USE_OSGPLUGIN(dds);
++USE_OSGPLUGIN(rgb);
++USE_OSGPLUGIN(jpeg);
++USE_OSGPLUGIN(png);
++USE_OSGPLUGIN(freetype);
++USE_OSGPLUGIN(3ds);
++USE_OSGPLUGIN(ac);
++USE_OSGPLUGIN(osg);
++USE_OSGPLUGIN(osg2);
++USE_OSGPLUGIN(txf);
++USE_SERIALIZER_WRAPPER_LIBRARY(osg);
++USE_SERIALIZER_WRAPPER_LIBRARY(osgFX);
++USE_SERIALIZER_WRAPPER_LIBRARY(osgParticle);
++USE_SERIALIZER_WRAPPER_LIBRARY(osgSim);
++USE_SERIALIZER_WRAPPER_LIBRARY(osgTerrain);
++USE_SERIALIZER_WRAPPER_LIBRARY(osgText);
++#else
+ // Image formats
+ USE_OSGPLUGIN(bmp);
+ USE_OSGPLUGIN(dds);
+@@ -97,6 +116,7 @@ USE_OSGPLUGIN(ive);
+ USE_OSGPLUGIN(osg);
+ USE_OSGPLUGIN(txf);
+ #endif
++#endif
+ 
+ // fg_os implementation using OpenSceneGraph's osgViewer::Viewer class
+ // to create the graphics window and run the event/update/render loop.

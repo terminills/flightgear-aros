@@ -1,0 +1,8 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+; the release as a user has it, with the data archive already downloaded: no network
+CD FG:FlightGear
+Echo "starting FGUnpack" >DEBUG:
+FGUnpack FG:FlightGear-2024.1.7-data.txz >DEBUG: *<>
+Echo "FGUnpack rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

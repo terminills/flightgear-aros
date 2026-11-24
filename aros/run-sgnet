@@ -1,0 +1,15 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+Execute FGTEST:net-up rtl8139.device
+Echo "ping the gateway" >DEBUG:
+ping -c 2 10.0.2.2 >DEBUG:
+Echo "ping rc $RC" >DEBUG:
+nslookup terrasync.b-cdn.net >DEBUG:
+Echo "nslookup rc $RC" >DEBUG:
+Stack 1000000
+SetEnv NAMESERVERS 10.0.2.3
+SetEnv SIMGEAR_TLS_CERT_PATH /ENV/SYS/Certificates/ca-bundle.crt
+; one program in this Shell: a second one would start with the first one's C library base (an AROS defect, open)
+FGTEST:tests/sgnet lookup naptr url http://terrasync.b-cdn.net/.dirindex url https://terrasync.b-cdn.net/Terrain/w030n60/.dirindex thread >DEBUG:
+Echo "sgnet rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

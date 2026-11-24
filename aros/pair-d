@@ -1,0 +1,4 @@
+Failat 2147483647
+Echo "pair d" >DEBUG:
+FGTEST:tests/twice d lib bz2.library
+FGTEST:tests/twice after-d

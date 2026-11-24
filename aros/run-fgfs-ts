@@ -1,0 +1,25 @@
+Failat 2147483647
+Echo "cp begin" >DEBUG:
+Assign LIBS: FG:libs ADD
+If EXISTS FGTEST:drivers
+  Assign LIBS: FGTEST:drivers ADD
+  SetEnv SYS/Gallium.default llvmpipe
+  Echo "gallium default llvmpipe" >DEBUG:
+EndIf
+If EXISTS FGTEST:devs
+  Avail FLUSH >NIL:
+  Assign DEVS: FGTEST:devs
+  Assign DEVS: SYS:Devs ADD
+  Echo "ahi.device of the test CD in front" >DEBUG:
+EndIf
+Execute FGTEST:net-up rtl8139.device
+; SimGear's DNS client takes its name server from here (AROS has no /etc/resolv.conf), its HTTP client the
+; certificates
+SetEnv NAMESERVERS 10.0.2.3
+SetEnv SIMGEAR_TLS_CERT_PATH /ENV/SYS/Certificates/ca-bundle.crt
+Stack 4000000
+CD FG:
+Echo "starting fgfs" >DEBUG:
+FG:fgfs --enable-terrasync --disable-real-weather-fetch --disable-ai-traffic --geometry=800x600 --graphics-preset=minimal-quality --timeofday=noon --log-level=info --log-class=terrasync,terrain,io,general,nasal --config=/FGTEST/fpslog.xml >DEBUG: *<>
+Echo "fgfs rc $RC" >DEBUG:
+Echo "cp done" >DEBUG:

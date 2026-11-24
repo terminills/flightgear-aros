@@ -1,0 +1,265 @@
+# aros/run-fgfs-js: 12 times stick right, half left, back, twist right, full throttle, hat right, trigger; 24 s each
+axis 0 1023
+wait 3000
+axis 0 256
+wait 3000
+axis 0 512
+axis 1 0
+wait 3000
+axis 1 512
+axis 2 255
+wait 3000
+axis 2 128
+axis 3 0
+wait 3000
+axis 3 255
+hat 0 2
+wait 1500
+hat 0 8
+wait 1500
+btn 0 1
+wait 3000
+btn 0 0
+wait 3000
+axis 0 1023
+wait 3000
+axis 0 256
+wait 3000
+axis 0 512
+axis 1 0
+wait 3000
+axis 1 512
+axis 2 255
+wait 3000
+axis 2 128
+axis 3 0
+wait 3000
+axis 3 255
+hat 0 2
+wait 1500
+hat 0 8
+wait 1500
+btn 0 1
+wait 3000
+btn 0 0
+wait 3000
+axis 0 1023
+wait 3000
+axis 0 256
+wait 3000
+axis 0 512
+axis 1 0
+wait 3000
+axis 1 512
+axis 2 255
+wait 3000
+axis 2 128
+axis 3 0
+wait 3000
+axis 3 255
+hat 0 2
+wait 1500
+hat 0 8
+wait 1500
+btn 0 1
+wait 3000
+btn 0 0
+wait 3000
+axis 0 1023
+wait 3000
+axis 0 256
+wait 3000
+axis 0 512
+axis 1 0
+wait 3000
+axis 1 512
+axis 2 255
+wait 3000
+axis 2 128
+axis 3 0
+wait 3000
+axis 3 255
+hat 0 2
+wait 1500
+hat 0 8
+wait 1500
+btn 0 1
+wait 3000
+btn 0 0
+wait 3000
+axis 0 1023
+wait 3000
+axis 0 256
+wait 3000
+axis 0 512
+axis 1 0
+wait 3000
+axis 1 512
+axis 2 255
+wait 3000
+axis 2 128
+axis 3 0
+wait 3000
+axis 3 255
+hat 0 2
+wait 1500
+hat 0 8
+wait 1500
+btn 0 1
+wait 3000
+btn 0 0
+wait 3000
+axis 0 1023
+wait 3000
+axis 0 256
+wait 3000
+axis 0 512
+axis 1 0
+wait 3000
+axis 1 512
+axis 2 255
+wait 3000
+axis 2 128
+axis 3 0
+wait 3000
+axis 3 255
+hat 0 2
+wait 1500
+hat 0 8
+wait 1500
+btn 0 1
+wait 3000
+btn 0 0
+wait 3000
+axis 0 1023
+wait 3000
+axis 0 256
+wait 3000
+axis 0 512
+axis 1 0
+wait 3000
+axis 1 512
+axis 2 255
+wait 3000
+axis 2 128
+axis 3 0
+wait 3000
+axis 3 255
+hat 0 2
+wait 1500
+hat 0 8
+wait 1500
+btn 0 1
+wait 3000
+btn 0 0
+wait 3000
+axis 0 1023
+wait 3000
+axis 0 256
+wait 3000
+axis 0 512
+axis 1 0
+wait 3000
+axis 1 512
+axis 2 255
+wait 3000
+axis 2 128
+axis 3 0
+wait 3000
+axis 3 255
+hat 0 2
+wait 1500
+hat 0 8
+wait 1500
+btn 0 1
+wait 3000
+btn 0 0
+wait 3000
+axis 0 1023
+wait 3000
+axis 0 256
+wait 3000
+axis 0 512
+axis 1 0
+wait 3000
+axis 1 512
+axis 2 255
+wait 3000
+axis 2 128
+axis 3 0
+wait 3000
+axis 3 255
+hat 0 2
+wait 1500
+hat 0 8
+wait 1500
+btn 0 1
+wait 3000
+btn 0 0
+wait 3000
+axis 0 1023
+wait 3000
+axis 0 256
+wait 3000
+axis 0 512
+axis 1 0
+wait 3000
+axis 1 512
+axis 2 255
+wait 3000
+axis 2 128
+axis 3 0
+wait 3000
+axis 3 255
+hat 0 2
+wait 1500
+hat 0 8
+wait 1500
+btn 0 1
+wait 3000
+btn 0 0
+wait 3000
+axis 0 1023
+wait 3000
+axis 0 256
+wait 3000
+axis 0 512
+axis 1 0
+wait 3000
+axis 1 512
+axis 2 255
+wait 3000
+axis 2 128
+axis 3 0
+wait 3000
+axis 3 255
+hat 0 2
+wait 1500
+hat 0 8
+wait 1500
+btn 0 1
+wait 3000
+btn 0 0
+wait 3000
+axis 0 1023
+wait 3000
+axis 0 256
+wait 3000
+axis 0 512
+axis 1 0
+wait 3000
+axis 1 512
+axis 2 255
+wait 3000
+axis 2 128
+axis 3 0
+wait 3000
+axis 3 255
+hat 0 2
+wait 1500
+hat 0 8
+wait 1500
+btn 0 1
+wait 3000
+btn 0 0
+wait 3000
